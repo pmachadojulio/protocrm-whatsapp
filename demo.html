@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ProtoCRM WhatsApp — Demo online</title>
+<style>
+  :root { --bg:#0f172a; --card:#1e293b; --line:#334155; --txt:#e2e8f0; --dim:#94a3b8;
+          --accent:#22d3ee; --in:#0ea5e9; --out:#10b981; --err:#f87171; --ok:#4ade80; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--txt); font:14px/1.5 'Segoe UI',system-ui,sans-serif; padding:16px; }
+  h1 { font-size:18px; margin-bottom:4px; }
+  h2 { font-size:14px; margin-bottom:8px; color:var(--accent); }
+  .sub { color:var(--dim); font-size:12px; margin-bottom:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px; margin-bottom:16px; }
+  input, button, textarea { font:inherit; padding:6px 10px; border-radius:6px; border:1px solid var(--line); background:#0b1424; color:var(--txt); }
+  button { background:var(--accent); color:#06283a; font-weight:600; cursor:pointer; border:none; }
+  button:hover { filter:brightness(1.1); }
+  button:disabled { opacity:.4; cursor:default; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px; }
+  .tag { background:#0b1424; border:1px solid var(--line); border-radius:20px; padding:2px 10px; font-size:12px; color:var(--dim); }
+  .grid { display:grid; grid-template-columns:340px 1fr; gap:16px; }
+  @media (max-width:900px){ .grid { grid-template-columns:1fr; } }
+  .conv { padding:8px 10px; border:1px solid var(--line); border-radius:8px; margin-bottom:6px; cursor:pointer; background:#0b1424; }
+  .conv:hover, .conv.sel { border-color:var(--accent); }
+  .conv .who { display:flex; justify-content:space-between; font-weight:600; }
+  .conv .last { color:var(--dim); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .conv .meta { color:var(--dim); font-size:11px; margin-top:2px; }
+  .msg { padding:8px 12px; border-radius:10px; margin-bottom:8px; max-width:75%; word-break:break-word; }
+  .msg.in  { background:#0e3a5c; margin-right:auto; border-top-left-radius:2px; }
+  .msg.out { background:#0c4a3a; margin-left:auto;  border-top-right-radius:2px; }
+  .msg .h { font-size:11px; color:var(--dim); margin-bottom:2px; display:flex; justify-content:space-between; gap:12px; }
+  .empty { color:var(--dim); font-style:italic; padding:8px 0; }
+  #log { font-family:Consolas,monospace; font-size:12px; color:var(--dim); white-space:pre-wrap; max-height:120px; overflow:auto; }
+  .bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  .badge { font-size:12px; padding:3px 10px; border-radius:20px; }
+  .ok { background:#052e16; color:var(--ok); border:1px solid var(--ok); }
+  .err { background:#450a0a; color:var(--err); border:1px solid var(--err); }
+  .chip { background:#0b1424; border:1px solid var(--accent); color:var(--txt); border-radius:20px;
+          padding:5px 12px; font-size:12px; cursor:pointer; display:inline-block; margin:2px; }
+  .chip:hover { background:var(--accent); color:#06283a; }
+  #loginOverlay { position:fixed; inset:0; background:rgba(15,23,42,0.96); display:flex; align-items:center; justify-content:center; z-index:999; }
+  #loginOverlay.hidden { display:none; }
+  .loginBox { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:24px; width:380px; max-width:90vw; }
+  .loginBox h2 { font-size:16px; margin-bottom:4px; }
+  .loginBox .sub { margin-bottom:12px; }
+  .loginBox input { width:100%; margin-bottom:10px; }
+  .loginBox button { width:100%; }
+  #app.hidden { display:none; }
+  #topBar { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+  #contactsDrawer { position:fixed; inset:0 auto 0 0; width:20vw; min-width:300px; max-width:380px; background:var(--card); border-right:1px solid var(--line); z-index:998; transform:translateX(-100%); transition:transform 0.25s ease; display:flex; flex-direction:column; }
+  #contactsDrawer.open { transform:translateX(0); }
+  #drawerBackdrop { position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:997; display:none; }
+  #drawerBackdrop.open { display:block; }
+  .drawerHead { padding:12px 14px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; }
+  .drawerBody { flex:1; overflow:auto; padding:10px; }
+  .contactItem { padding:8px 10px; border-bottom:1px solid var(--line); cursor:pointer; display:flex; justify-content:space-between; gap:8px; }
+  .contactItem:hover { background:#0b1424; }
+  .menuSection { border-bottom:1px solid var(--line); }
+  .menuHeader { padding:10px 14px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; font-weight:600; color:var(--accent); font-size:13px; user-select:none; }
+  .menuHeader:hover { background:#0b1424; }
+  .menuBody { padding:10px; }
+  .menuBody.collapsed { display:none; }
+  .menuHeader .arrow { transition:transform 0.2s; font-size:10px; }
+  .menuHeader.collapsed .arrow { transform:rotate(-90deg); }
+  @media (max-width:900px){ #contactsDrawer { width:85vw; } }
+  #topBar .who { font-size:12px; color:var(--dim); }
+  #demoBanner { background:#083344; border:1px solid var(--accent); border-radius:10px; padding:10px 14px; margin-bottom:16px; font-size:13px; }
+  #demoBanner b { color:var(--accent); }
+</style>
+</head>
+<body>
+
+<div id="demoBanner">🚀 <b>MODO DEMO</b> — Todo corre en tu navegador con datos simulados (sin backend). Probá: simular un mensaje, responder como agente, pausar el bot, importar un CSV. <button id="btnResetDemo" style="float:right; font-size:12px; padding:4px 10px">Reiniciar demo</button></div>
+
+<div id="loginOverlay">
+  <div class="loginBox">
+    <h2>Ingresar al CRM</h2>
+    <div class="sub">ProtoCRM WhatsApp — acceso de asesores (demo)</div>
+    <input id="loginUser" placeholder="usuario">
+    <input id="loginPass" type="password" placeholder="contraseña">
+    <button id="btnLogin">Entrar</button>
+    <div id="loginError" class="sub" style="color:var(--err); margin-top:8px; min-height:16px"></div>
+    <div class="sub" style="margin-top:12px">Demo: <b>matias</b> / matias123 (admin) · <b>asesor1</b> / 1234 · <b>asesor2</b> / 1234</div>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+<div id="topBar">
+  <div style="display:flex; align-items:center; gap:12px">
+    <button id="btnMenu" title="Menú" style="font-size:18px; padding:8px 12px; line-height:1">☰</button>
+    <div>
+      <h1>ProtoCRM WhatsApp — Demo</h1>
+      <div class="sub" style="margin:0">Conversaciones, bot por reglas, handoff a humano y contactos.</div>
+    </div>
+  </div>
+  <div style="text-align:right">
+    <div id="whoami" class="who"></div>
+    <button id="btnLogout" style="padding:4px 10px; font-size:12px; background:var(--err); color:white; margin-top:4px">Salir</button>
+  </div>
+</div>
+
+<div id="drawerBackdrop"></div>
+<div id="contactsDrawer">
+  <div class="drawerHead">
+    <h2 style="margin:0">Menú</h2>
+    <button id="btnCloseContacts" style="padding:4px 8px">✕</button>
+  </div>
+  <div class="menuSection">
+    <div class="menuHeader" data-target="menuContactosBody">Contactos <span class="arrow">▼</span></div>
+    <div id="menuContactosBody" class="menuBody">
+      <input id="contactSearch" placeholder="Buscar nombre o teléfono" style="width:100%; margin-bottom:8px">
+      <div class="row">
+        <input type="file" id="csvFile" accept=".csv" style="max-width:150px">
+        <button id="btnImportCsv" style="flex:1; font-size:12px">Importar</button>
+        <button id="btnExportCsv" style="flex:1; font-size:12px">Exportar</button>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button id="btnLoadContacts" style="flex:1; font-size:12px">Refrescar</button>
+        <span id="contactsInfo" class="tag"></span>
+      </div>
+      <div id="contactsList" style="max-height:28vh; overflow:auto; border:1px solid var(--line); border-radius:8px; padding:6px; margin-top:8px"></div>
+      <div class="sub" style="margin:6px 0 0 0">CSV: phone,name,tags — clic para usar</div>
+    </div>
+  </div>
+  <div class="menuSection">
+    <div class="menuHeader collapsed" data-target="menuLogBody">Log <span class="arrow">▼</span></div>
+    <div id="menuLogBody" class="menuBody collapsed">
+      <div id="log" style="font-family:Consolas,monospace; font-size:11px; color:var(--dim); white-space:pre-wrap; max-height:220px; overflow:auto"></div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>2. Simular mensaje entrante de Meta</h2>
+  <div class="row">
+    <input id="simPhone" style="width:200px" placeholder="5491133558844">
+    <input id="simName" style="width:160px" placeholder="Nombre del cliente">
+    <input id="simText" style="flex:1" placeholder="Hola, ¿qué horarios tienen?">
+    <button id="btnSim">Simular mensaje</button>
+  </div>
+  <div class="sub">El bot responde solo según sus reglas (probá con "precio", "factura" u "horario").</div>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <div class="bar"><h2>3. Conversaciones</h2><span id="convCount" class="tag">0</span></div>
+    <div class="row" style="gap:4px; margin-bottom:8px">
+      <button id="tabCola" class="tag" style="cursor:pointer; background:var(--accent); color:#06283a">Cola</button>
+      <button id="tabMias" class="tag" style="cursor:pointer">Mías</button>
+      <button id="tabFinalizadas" class="tag" style="cursor:pointer">Finalizadas</button>
+    </div>
+    <div id="convList"><div class="empty">Sin datos.</div></div>
+  </div>
+  <div class="card">
+    <div class="bar">
+      <h2 id="msgsTitle">4. Historial de la conversacion</h2>
+      <span id="convMeta" class="tag"></span>
+    </div>
+    <div id="msgList"><div class="empty">Selecciona una conversacion.</div></div>
+    <div id="handoffBox" style="display:none; margin-top:8px">
+      <span id="handoffBadge" class="tag"></span>
+      <button id="btnPausar" style="font-size:12px; padding:4px 8px">Pausar bot</button>
+      <button id="btnReanudar" style="font-size:12px; padding:4px 8px">Devolver al bot</button>
+      <button id="btnCerrar" style="font-size:12px; padding:4px 8px; background:#334155">Finalizar</button>
+    </div>
+    <div id="sugWrap" style="display:none">
+      <div class="row" style="margin-top:10px">
+        <span class="tag">Posibles respuestas (IA):</span>
+        <span id="sugChips"></span>
+        <button id="btnSug" style="font-size:12px; padding:4px 8px">Refrescar</button>
+      </div>
+    </div>
+    <div id="replyBox" style="display:none">
+      <div class="row" style="margin-top:10px">
+        <input id="replyText" style="flex:1" placeholder="Escribi la respuesta del agente...">
+        <button id="btnSend">Responder</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /#app -->
+
+<script>
+(function () {
+  'use strict';
+  var LS_KEY = 'protocrm_demo_v1';
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ============ Datos semilla (mismas reglas/usuarios que el backend) ============ */
+  var SEED_USERS = [
+    { username:'matias',  password:'matias123', display_name:'Matias',   role:'admin' },
+    { username:'asesor1', password:'1234',      display_name:'Asesor 1', role:'agent' },
+    { username:'asesor2', password:'1234',      display_name:'Asesor 2', role:'agent' }
+  ];
+  // Mismas bot_rules del backend, ordenadas por prioridad
+  var BOT_RULES = [
+    { name:'horarios',    keywords:'horario,abren,abierto,cierre,dias,feriado,turno,turnos'.split(','),
+      response:'Atendemos de lunes a viernes de 9 a 18 hs, sabados 9 a 13 hs. Sin turno previo.' },
+    { name:'facturacion', keywords:'factura,facturacion,comprobante,recibo,pago'.split(','),
+      response:'Para temas de facturacion escribinos a facturacion@tuempresa.com' },
+    { name:'ventas',      keywords:'precio,presupuesto,cotizacion,plan,contratar,cuanto,campera,cholo,river'.split(','),
+      response:'Te dejamos con un asesor de ventas a la brevedad.' }
+  ];
+  var EMPRESA = { horarios:'Lunes a viernes 9 a 18 hs, sábados 9 a 13 hs',
+                  turnos:'Sin turno previo, atención por orden de llegada.' };
+  var FALLBACK = 'Hola, gracias por escribirnos. Un asesor te respondera a la brevedad.';
+  var SUG_VENTAS = ['Te paso un presupuesto estimado en breve.',
+                    'Podrias contarme mas detalles para cotizarte?',
+                    'Gracias por tu consulta, te deriva un asesor comercial.'];
+  var SUG_GRAL = ['Gracias por escribirnos, como podemos ayudarte?',
+                  'Te derivo con un asesor a la brevedad.',
+                  'Quedo atento a tu respuesta.'];
+
+  function decideReply(text) {
+    var t = (text || '').toLowerCase();
+    for (var i = 0; i < BOT_RULES.length; i++) {
+      var r = BOT_RULES[i];
+      for (var k = 0; k < r.keywords.length; k++) {
+        if (t.indexOf(r.keywords[k]) >= 0) return r.response;
+      }
+    }
+    var ctx = ['horario','turno','cuando abren','direccion','donde quedan'];
+    for (var j = 0; j < ctx.length; j++) {
+      if (t.indexOf(ctx[j]) >= 0) return (EMPRESA.horarios + ' ' + EMPRESA.turnos).trim();
+    }
+    return FALLBACK;
+  }
+
+  var uid = 0;
+  function nid(p) { uid++; return (p || 'id') + '-' + Date.now() + '-' + uid; }
+  function minsAgo(m) { return new Date(Date.now() - m * 60000).toISOString(); }
+
+  function seed() {
+    uid = 0;
+    return {
+      convs: [
+        { conversation_id:'conv-1', phone:'5491123456789', contact_name:'Lucía Gómez',
+          status:'open', bot_handled:1, assignee_id:null, assignee_name:null,
+          last_message:'¿Hacen envíos al interior?', last_message_at:minsAgo(12),
+          messages:[
+            { id:nid('m'), direction:'in',  body:'Hola, ¿qué horarios tienen?', created_at:minsAgo(25), created_by_name:null },
+            { id:nid('m'), direction:'out', body:BOT_RULES[0].response, created_at:minsAgo(25), created_by_name:'Bot' },
+            { id:nid('m'), direction:'in',  body:'¿Hacen envíos al interior?', created_at:minsAgo(12), created_by_name:null },
+            { id:nid('m'), direction:'out', body:FALLBACK, created_at:minsAgo(12), created_by_name:'Bot' }
+          ]},
+        { conversation_id:'conv-2', phone:'5491198765432', contact_name:'Martín Pérez',
+          status:'open', bot_handled:0, assignee_id:'asesor1', assignee_name:'Asesor 1',
+          last_message:'Dale, te espero', last_message_at:minsAgo(40),
+          messages:[
+            { id:nid('m'), direction:'in',  body:'Necesito un presupuesto de camperas', created_at:minsAgo(60), created_by_name:null },
+            { id:nid('m'), direction:'out', body:BOT_RULES[2].response, created_at:minsAgo(60), created_by_name:'Bot' },
+            { id:nid('m'), direction:'out', body:'Hola Martín, te paso el catálogo y coordinamos talles.', created_at:minsAgo(40), created_by_name:'Asesor 1' },
+            { id:nid('m'), direction:'in',  body:'Dale, te espero', created_at:minsAgo(40), created_by_name:null }
+          ]},
+        { conversation_id:'conv-3', phone:'5491155667788', contact_name:'Sofía Ruiz',
+          status:'closed', bot_handled:1, assignee_id:null, assignee_name:null,
+          last_message:'Gracias!', last_message_at:minsAgo(300),
+          messages:[
+            { id:nid('m'), direction:'in',  body:'¿Me pasás la factura del mes pasado?', created_at:minsAgo(320), created_by_name:null },
+            { id:nid('m'), direction:'out', body:BOT_RULES[1].response, created_at:minsAgo(320), created_by_name:'Bot' },
+            { id:nid('m'), direction:'in',  body:'Gracias!', created_at:minsAgo(300), created_by_name:null }
+          ]}
+      ],
+      contacts: [
+        { phone:'5491123456789', name:'Lucía Gómez', tags:'["mayorista"]' },
+        { phone:'5491198765432', name:'Martín Pérez', tags:'["presupuesto"]' },
+        { phone:'5491155667788', name:'Sofía Ruiz', tags:'[]' },
+        { phone:'5491133558844', name:'Cliente ejemplo', tags:'[]' }
+      ]
+    };
+  }
+
+  /* ============ Estado ============ */
+  var S = load() || seed();
+  var currentUser = null;
+  try { currentUser = JSON.parse(localStorage.getItem('protocrm_demo_user') || 'null'); } catch (e) {}
+  var currentConv = null, currentTab = 'cola';
+
+  function load() { try { return JSON.parse(localStorage.getItem(LS_KEY)); } catch (e) { return null; } }
+  function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(S)); } catch (e) {} }
+
+  function log(msg) {
+    var t = new Date().toLocaleTimeString();
+    $('log').textContent = '[' + t + '] ' + msg + '\n' + $('log').textContent;
+  }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+    });
+  }
+  function fmtDate(d) {
+    if (!d) return '';
+    var dt = new Date(d);
+    if (isNaN(dt.getTime())) return String(d);
+    return dt.toLocaleString();
+  }
+
+  /* ============ Login ============ */
+  function updateLoginUI() {
+    var overlay = $('loginOverlay'), app = $('app'), who = $('whoami');
+    if (currentUser) {
+      overlay.classList.add('hidden'); app.classList.remove('hidden');
+      who.textContent = currentUser.display_name + ' (' + currentUser.username + ' · ' + currentUser.role + ')';
+      $('loginError').textContent = '';
+    } else {
+      overlay.classList.remove('hidden'); app.classList.add('hidden');
+      who.textContent = '';
+      $('loginUser').value = ''; $('loginPass').value = '';
+    }
+  }
+  $('btnLogin').onclick = function () {
+    var u = $('loginUser').value.trim(), p = $('loginPass').value;
+    var found = null;
+    for (var i = 0; i < SEED_USERS.length; i++) {
+      if (SEED_USERS[i].username === u && SEED_USERS[i].password === p) { found = SEED_USERS[i]; break; }
+    }
+    if (!found) { $('loginError').textContent = 'Credenciales inválidas'; return; }
+    currentUser = { user_id: found.username, username: found.username, display_name: found.display_name, role: found.role };
+    localStorage.setItem('protocrm_demo_user', JSON.stringify(currentUser));
+    updateLoginUI(); renderConvs(); renderContacts(S.contacts);
+    log('Login OK como ' + currentUser.display_name + ' (demo)');
+  };
+  $('loginPass').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('btnLogin').click(); });
+  $('loginUser').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('loginPass').focus(); });
+  $('btnLogout').onclick = function () {
+    currentUser = null; currentConv = null;
+    localStorage.removeItem('protocrm_demo_user');
+    updateLoginUI(); log('Sesión cerrada');
+  };
+  $('btnResetDemo').onclick = function () {
+    if (!confirm('Reiniciar la demo a los datos iniciales?')) return;
+    S = seed(); currentConv = null; save();
+    renderConvs(); renderContacts(S.contacts);
+    $('msgList').innerHTML = '<div class="empty">Selecciona una conversacion.</div>';
+    log('Demo reiniciada');
+  };
+
+  /* ============ Conversaciones ============ */
+  function setTab(tab) {
+    currentTab = tab;
+    ['Cola','Mias','Finalizadas'].forEach(function (n) {
+      var b = $('tab' + n);
+      var active = tab === n.toLowerCase();
+      b.style.background = active ? 'var(--accent)' : '';
+      b.style.color = active ? '#06283a' : '';
+    });
+    renderConvs();
+  }
+  $('tabCola').onclick = function () { setTab('cola'); };
+  $('tabMias').onclick = function () { setTab('mias'); };
+  $('tabFinalizadas').onclick = function () { setTab('finalizadas'); };
+
+  function renderConvs() {
+    var box = $('convList');
+    var filtered = S.convs.filter(function (c) {
+      if (currentTab === 'cola') return !c.assignee_id && c.status !== 'closed';
+      if (currentTab === 'mias') return c.assignee_id && currentUser && c.assignee_id === currentUser.user_id;
+      if (currentTab === 'finalizadas') return c.status === 'closed';
+      return true;
+    });
+    $('convCount').textContent = filtered.length + '/' + S.convs.length;
+    box.innerHTML = '';
+    if (!filtered.length) {
+      var msg = currentTab === 'cola' ? 'Cola vacía' : currentTab === 'mias' ? 'No tenés conversaciones asignadas' : 'Sin finalizadas';
+      box.innerHTML = '<div class="empty">' + msg + '</div>'; return;
+    }
+    filtered.forEach(function (c) {
+      var isBot = c.bot_handled == 1;
+      var badge = isBot ? 'bot' : 'humano';
+      if (c.assignee_name) badge = '@' + c.assignee_name;
+      else if (c.status === 'closed') badge = 'cerrada';
+      var d = document.createElement('div');
+      d.className = 'conv' + (currentConv && currentConv.conversation_id === c.conversation_id ? ' sel' : '');
+      var extra = c.assignee_name ? ' · @' + esc(c.assignee_name) : '';
+      if (c.assignee_id && currentUser && c.assignee_id !== currentUser.user_id) d.style.opacity = '0.6';
+      d.innerHTML = '<div class="who"><span>' + esc(c.contact_name) + '</span><span class="tag">' + esc(c.status) + ' · ' + esc(badge) + '</span></div>' +
+                    '<div class="last">' + esc(c.last_message || '') + extra + '</div>' +
+                    '<div class="meta">' + esc(c.phone) + ' · ' + fmtDate(c.last_message_at) + '</div>';
+      d.onclick = function () {
+        if (!c.assignee_id && c.status !== 'closed') {
+          c.assignee_id = currentUser.user_id; c.assignee_name = currentUser.display_name;
+          save(); log('Conversación tomada -> movida a Mías');
+          setTab('mias'); openConv(c);
+        } else if (c.assignee_id && currentUser && c.assignee_id !== currentUser.user_id) {
+          log('Atendida por @' + c.assignee_name + ' — solo lectura');
+          openConv(c);
+          $('replyText').disabled = true; $('btnSend').disabled = true;
+        } else {
+          openConv(c);
+          $('replyText').disabled = false; $('btnSend').disabled = false;
+        }
+      };
+      box.appendChild(d);
+    });
+    if (currentConv) {
+      var fresh = findConv(currentConv.conversation_id);
+      if (fresh) { currentConv = fresh; updateHandoffBadge(); }
+    }
+  }
+  function findConv(id) {
+    for (var i = 0; i < S.convs.length; i++) if (S.convs[i].conversation_id === id) return S.convs[i];
+    return null;
+  }
+
+  function updateHandoffBadge() {
+    var b = $('handoffBadge');
+    if (!currentConv) { b.textContent = ''; return; }
+    var isBot = currentConv.bot_handled == 1;
+    b.textContent = isBot ? 'Bot activo' : 'Humano a cargo (bot pausado)';
+    b.className = 'tag ' + (isBot ? 'ok' : 'err');
+    $('btnPausar').style.display = isBot ? '' : 'none';
+    $('btnReanudar').style.display = isBot ? 'none' : '';
+  }
+
+  function openConv(c) {
+    currentConv = c;
+    $('convMeta').textContent = c.phone + ' · ' + c.contact_name;
+    $('replyBox').style.display = '';
+    $('sugWrap').style.display = '';
+    $('handoffBox').style.display = '';
+    updateHandoffBadge();
+    var isOther = c.assignee_id && currentUser && c.assignee_id !== currentUser.user_id;
+    $('replyText').disabled = !!isOther;
+    $('btnSend').disabled = !!isOther;
+    if (isOther) log('Solo lectura: atendida por @' + c.assignee_name);
+    renderMsgs(); renderSuggestions(); renderConvs();
+  }
+
+  function renderMsgs() {
+    if (!currentConv) return;
+    var box = $('msgList');
+    box.innerHTML = '';
+    if (!currentConv.messages.length) { box.innerHTML = '<div class="empty">Sin mensajes registrados.</div>'; return; }
+    currentConv.messages.forEach(function (m) {
+      var d = document.createElement('div');
+      d.className = 'msg ' + (m.direction === 'in' ? 'in' : 'out');
+      var who = m.direction === 'in' ? 'Cliente' : (m.created_by_name ? esc(m.created_by_name) : 'Bot');
+      d.innerHTML = '<div class="h"><span>' + who + '</span><span>' + fmtDate(m.created_at) + '</span></div>' + esc(m.body || '');
+      box.appendChild(d);
+    });
+  }
+
+  function pushMsg(conv, direction, body, by) {
+    conv.messages.push({ id: nid('m'), direction: direction, body: body,
+                         created_at: new Date().toISOString(), created_by_name: by || null });
+    conv.last_message = body; conv.last_message_at = new Date().toISOString();
+    save();
+  }
+
+  function renderSuggestions() {
+    if (!currentConv) return;
+    var box = $('sugChips');
+    box.innerHTML = '';
+    var lastIn = '';
+    for (var i = currentConv.messages.length - 1; i >= 0; i--) {
+      if (currentConv.messages[i].direction === 'in') { lastIn = currentConv.messages[i].body || ''; break; }
+    }
+    var t = lastIn.toLowerCase();
+    var isSales = ['precio','presupuesto','cotiz','cuanto','campera','comprar'].some(function (k) { return t.indexOf(k) >= 0; });
+    (isSales ? SUG_VENTAS : SUG_GRAL).forEach(function (s) {
+      var ch = document.createElement('span');
+      ch.className = 'chip'; ch.textContent = s; ch.title = 'Click para usar esta respuesta';
+      ch.onclick = function () { $('replyText').value = s; $('replyText').focus(); };
+      box.appendChild(ch);
+    });
+  }
+  $('btnSug').onclick = renderSuggestions;
+
+  /* ============ Enviar / simular ============ */
+  function doSend() {
+    var text = $('replyText').value.trim();
+    if (!currentConv || !text) return;
+    pushMsg(currentConv, 'out', text, currentUser.display_name);
+    $('replyText').value = '';
+    log('Agente respondió en ' + currentConv.phone);
+    renderMsgs(); renderConvs();
+  }
+  $('btnSend').onclick = doSend;
+  $('replyText').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); doSend(); } });
+
+  $('btnSim').onclick = function () {
+    var phone = $('simPhone').value.trim();
+    var name = $('simName').value.trim() || 'Cliente';
+    var text = $('simText').value.trim();
+    if (!phone || !text) { log('Completa telefono y mensaje para simular.'); return; }
+    var conv = null;
+    for (var i = 0; i < S.convs.length; i++) {
+      if (S.convs[i].phone === phone && S.convs[i].status !== 'closed') { conv = S.convs[i]; break; }
+    }
+    if (!conv) {
+      conv = { conversation_id: nid('conv'), phone: phone, contact_name: name,
+               status: 'open', bot_handled: 1, assignee_id: null, assignee_name: null,
+               last_message: '', last_message_at: null, messages: [] };
+      S.convs.unshift(conv);
+      upsertContact(phone, name);
+      log('Nueva conversación de ' + name + ' (' + phone + ')');
+    }
+    pushMsg(conv, 'in', text, null);
+    log('Mensaje entrante: "' + text.slice(0, 60) + '"');
+    renderConvs();
+    if (currentConv && currentConv.conversation_id === conv.conversation_id) renderMsgs();
+    // El bot responde solo si está activo en esa conversación
+    if (conv.bot_handled == 1) {
+      var reply = decideReply(text);
+      setTimeout(function () {
+        pushMsg(conv, 'out', reply, 'Bot');
+        log('Bot respondió: "' + reply.slice(0, 60) + '"');
+        renderConvs();
+        if (currentConv && currentConv.conversation_id === conv.conversation_id) { renderMsgs(); renderSuggestions(); }
+      }, 900);
+    } else {
+      log('Bot pausado en esta conversación: esperaba a un humano.');
+    }
+  };
+
+  /* ============ Handoff ============ */
+  $('btnPausar').onclick = function () {
+    if (!currentConv) return;
+    currentConv.bot_handled = 0; save();
+    log('Bot pausado en ' + currentConv.phone); updateHandoffBadge(); renderConvs();
+  };
+  $('btnReanudar').onclick = function () {
+    if (!currentConv) return;
+    currentConv.bot_handled = 1; save();
+    log('Bot reanudado en ' + currentConv.phone); updateHandoffBadge(); renderConvs();
+  };
+  $('btnCerrar').onclick = function () {
+    if (!currentConv) return;
+    if (!confirm('Finalizar conversación? Pasará a Finalizadas.')) return;
+    currentConv.status = 'closed'; save();
+    log('Conversación finalizada');
+    currentConv = null;
+    $('replyBox').style.display = 'none'; $('handoffBox').style.display = 'none'; $('sugWrap').style.display = 'none';
+    $('msgList').innerHTML = '<div class="empty">Selecciona una conversacion.</div>';
+    renderConvs();
+  };
+
+  /* ============ Contactos ============ */
+  function renderContacts(list) {
+    var q = ($('contactSearch').value || '').toLowerCase().trim();
+    var filtered = q ? list.filter(function (c) { return (c.name || '').toLowerCase().indexOf(q) >= 0 || (c.phone || '').indexOf(q) >= 0; }) : list;
+    var box = $('contactsList'); box.innerHTML = '';
+    $('contactsInfo').textContent = list.length + ' contactos';
+    if (!filtered.length) { box.innerHTML = '<div class="empty">' + (q ? 'Sin resultados' : 'Sin contactos aún.') + '</div>'; return; }
+    filtered.forEach(function (c) {
+      var d = document.createElement('div');
+      d.className = 'contactItem';
+      var tags = '';
+      try { var t = JSON.parse(c.tags || '[]'); tags = Array.isArray(t) ? t.join(', ') : c.tags; } catch (e) { tags = c.tags; }
+      var msgCount = 0;
+      S.convs.forEach(function (cv) { if (cv.phone === c.phone) msgCount += cv.messages.length; });
+      d.innerHTML = '<div><div style="font-weight:600">' + esc(c.name || 'Sin nombre') + '</div><div style="font-size:11px; color:var(--dim)">' + esc(c.phone) + (tags ? ' · ' + esc(tags) : '') + '</div></div><div class="tag" style="align-self:center">' + msgCount + ' msgs</div>';
+      d.onclick = function () { $('simPhone').value = c.phone; $('simName').value = c.name || ''; log('Contacto ' + c.phone + ' seleccionado'); toggleContacts(false); };
+      box.appendChild(d);
+    });
+  }
+  function upsertContact(phone, name) {
+    for (var i = 0; i < S.contacts.length; i++) if (S.contacts[i].phone === phone) return;
+    S.contacts.push({ phone: phone, name: name, tags: '[]' });
+    save();
+  }
+  function toggleContacts(open) {
+    var d = $('contactsDrawer'), b = $('drawerBackdrop');
+    var should = open !== undefined ? open : !d.classList.contains('open');
+    d.classList.toggle('open', should); b.classList.toggle('open', should);
+    if (should) renderContacts(S.contacts);
+  }
+  $('btnLoadContacts').onclick = function () { renderContacts(S.contacts); };
+  $('btnMenu').onclick = function () { toggleContacts(true); };
+  $('btnCloseContacts').onclick = function () { toggleContacts(false); };
+  $('drawerBackdrop').onclick = function () { toggleContacts(false); };
+  $('contactSearch').addEventListener('input', function () { renderContacts(S.contacts); });
+  document.querySelectorAll('.menuHeader').forEach(function (h) {
+    h.addEventListener('click', function () {
+      var body = document.getElementById(h.getAttribute('data-target'));
+      var isCollapsed = body.classList.contains('collapsed');
+      body.classList.toggle('collapsed', !isCollapsed);
+      h.classList.toggle('collapsed', !isCollapsed);
+    });
+  });
+  $('btnImportCsv').onclick = function () {
+    var f = $('csvFile').files[0];
+    if (!f) { log('Elegí un CSV primero'); return; }
+    var r = new FileReader();
+    r.onload = function (e) {
+      var lines = String(e.target.result).split(/\r?\n/).filter(function (l) { return l.trim(); });
+      if (!lines.length) return;
+      var start = lines[0].toLowerCase().indexOf('phone') >= 0 ? 1 : 0;
+      var n = 0;
+      for (var i = start; i < lines.length; i++) {
+        var line = lines[i], parts = [], cur = '', inQ = false;
+        for (var k = 0; k < line.length; k++) {
+          var ch = line[k];
+          if (ch === '"') inQ = !inQ;
+          else if (ch === ',' && !inQ) { parts.push(cur); cur = ''; }
+          else cur += ch;
+        }
+        parts.push(cur);
+        var phone = (parts[0] || '').trim().replace(/[^0-9]/g, '');
+        var name = (parts[1] || '').trim().replace(/^"|"$/g, '');
+        var tags = (parts[2] || '').trim().replace(/^"|"$/g, '');
+        if (phone) { upsertContact(phone, name); n++; }
+      }
+      log('Import OK: ' + n + ' contactos (demo local)');
+      renderContacts(S.contacts);
+    };
+    r.readAsText(f);
+  };
+  $('btnExportCsv').onclick = function () {
+    var csv = 'phone,name,tags\n';
+    S.contacts.forEach(function (c) {
+      var tags = '';
+      try { var t = JSON.parse(c.tags || '[]'); tags = Array.isArray(t) ? t.join(';') : c.tags; } catch (e) { tags = c.tags || ''; }
+      csv += c.phone + ',"' + String(c.name || '').replace(/"/g, '""') + '","' + String(tags || '').replace(/"/g, '""') + '"\n';
+    });
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = 'contactos_demo.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    log('Exportados ' + S.contacts.length + ' contactos');
+  };
+
+  /* ============ Init ============ */
+  updateLoginUI();
+  renderConvs();
+  renderContacts(S.contacts);
+  if (currentUser) log('Sesión demo restaurada como ' + currentUser.display_name);
+})();
+</script>
+</body>
+</html>
