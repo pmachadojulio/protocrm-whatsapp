@@ -1,0 +1,397 @@
+{
+  "name": "ProtoCRM WA Inbox API (para UI)",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "wa-inbox",
+        "httpMethod": "GET",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "9ee1a89c-55ab-479d-bfb6-25f24d3fc201",
+      "name": "Listar Conversaciones",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "w4-inbox-4523c23d1224"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT conversation_id::text, contact_id::text, phone, contact_name, status, bot_handled, last_message_at, last_message, last_direction\nFROM crm.v_inbox\nORDER BY last_message_at DESC\nLIMIT 50;",
+        "options": {}
+      },
+      "id": "06107205-7a7c-4c56-b0ae-f31c194f0fb0",
+      "name": "Query Conversaciones",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "",
+        "options": {}
+      },
+      "id": "489c9563-d0f2-42fd-8bdc-4ed44bc95e78",
+      "name": "Responder Conversaciones",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "path": "wa-msgs",
+        "httpMethod": "GET",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "e2b552ba-c896-48ad-8951-a4fe29226d79",
+      "name": "Mensajes de Conversacion",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "w4-msgs-61055a6559a3"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id::text, conversation_id::text, direction, message_type, body, media_url, created_at\nFROM crm.messages\nWHERE conversation_id = '{{ $json.query.conv_id }}'\nORDER BY created_at ASC\nLIMIT 200;",
+        "options": {}
+      },
+      "id": "e4166eb0-818c-4cac-9050-ca3ecd3b7b94",
+      "name": "Query Mensajes",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        220,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "",
+        "options": {}
+      },
+      "id": "c3db59fb-de03-42a3-92c2-ddbc12c1de7d",
+      "name": "Responder Mensajes",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "path": "wa-suggest",
+        "httpMethod": "GET",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "431cc98d-2fc2-43b1-b655-eac68ccf7337",
+      "name": "Sugerencias de Respuesta",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        400
+      ],
+      "webhookId": "w4-sug-2f4fa150aaee"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT direction, body\nFROM crm.messages\nWHERE conversation_id = '{{ $json.query.conv_id }}'\nORDER BY created_at DESC\nLIMIT 12;",
+        "options": {}
+      },
+      "id": "f398716b-866a-4281-8a91-6ee444f2aa3d",
+      "name": "Historial Para Sugerencias",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        220,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const hist = $input.all().reverse()\n  .filter(i => i.json.body)\n  .map(i => ({ role: i.json.direction === 'in' ? 'user' : 'assistant', content: String(i.json.body) }));\nconst empresa = process.env.EMPRESA_CTX || 'Empresa de indumentaria. Horarios: Lun-Vie 9-18, sab 9-13. Turnos sin turno previo.';\nconst sys = 'Sos un asistente de ' + empresa + ' por WhatsApp. Analiza la conversacion '\n  + 'y devuelve SOLO un JSON array (sin markdown ni explicaciones) con exactamente 3 respuestas cortas '\n  + '(maximo 2 frases cada una) que el agente humano podria enviar como siguiente mensaje. '\n  + 'Usa el contexto de la empresa. Varia: una resolutiva, una pidiendo dato y una cierre amable.';\nconst payload = {\n  model: process.env.LLM_MODEL || 'meta-llama/llama-3.3-70b-instruct:free',\n  max_tokens: 250,\n  temperature: 0.7,\n  messages: [{ role: 'system', content: sys }].concat(hist)\n};\nreturn [{ json: { payload } }];"
+      },
+      "id": "314a6324-a564-44c2-a79b-5b041c0efbf4",
+      "name": "Armar Prompt Sugerencias",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.OPENROUTER_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "f999ec49-7956-4c16-815a-a93f3e13fbaa",
+      "name": "Llamar OpenRouter Sug",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "let suggestions = [];\ntry {\n  const out = $input.first().json;\n  let raw = out.choices && out.choices[0] && out.choices[0].message ? out.choices[0].message.content : '';\n  raw = String(raw || '').replace(/```json/gi, '').replace(/```/g, '').trim();\n  const m = raw.match(/\\[[\\s\\S]*\\]/);\n  const arr = JSON.parse(m ? m[0] : raw);\n  if (Array.isArray(arr)) suggestions = arr.filter(s => typeof s === 'string' && s.trim()).map(s => s.trim()).slice(0, 3);\n} catch (e) { suggestions = []; }\nreturn [{ json: { suggestions } }];"
+      },
+      "id": "2f245544-8a1d-4740-be6e-e68cca4c842d",
+      "name": "Parsear Sugerencias",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "",
+        "options": {}
+      },
+      "id": "269c3865-44d8-46e1-93d4-609dbb6e7794",
+      "name": "Responder Sugerencias",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1100,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "path": "wa-handoff",
+        "httpMethod": [
+          "GET",
+          "POST"
+        ],
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "e4a83861-52e3-4d27-9697-66bed567824d",
+      "name": "Webhook Handoff",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        600
+      ],
+      "webhookId": "w4-handoff-3544cd5179da"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE crm.conversations SET bot_handled = CASE WHEN '{{ $json.query.action }}' IN ('bot','reanudar') OR '{{ $json.body.action }}' IN ('bot','reanudar') THEN 1 ELSE 0 END,\n status = CASE WHEN '{{ $json.query.action }}' IN ('bot','reanudar') OR '{{ $json.body.action }}' IN ('bot','reanudar') THEN 'bot' ELSE 'open' END,\n updated_at=now(), last_message_at=now()\nWHERE id='{{ $json.query.conv_id }}{{ $json.body.conv_id }}' RETURNING id, bot_handled, status;",
+        "options": {}
+      },
+      "id": "85f9eaaa-946d-4f43-b587-8c2d51b20f2c",
+      "name": "Ejecutar Handoff",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        220,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "",
+        "options": {}
+      },
+      "id": "f1c94a5d-0c30-4f5a-bdd3-f04558e81e0a",
+      "name": "Responder Handoff",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        600
+      ]
+    }
+  ],
+  "connections": {
+    "Listar Conversaciones": {
+      "main": [
+        [
+          {
+            "node": "Query Conversaciones",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Conversaciones": {
+      "main": [
+        [
+          {
+            "node": "Responder Conversaciones",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensajes de Conversacion": {
+      "main": [
+        [
+          {
+            "node": "Query Mensajes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Mensajes": {
+      "main": [
+        [
+          {
+            "node": "Responder Mensajes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sugerencias de Respuesta": {
+      "main": [
+        [
+          {
+            "node": "Historial Para Sugerencias",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Historial Para Sugerencias": {
+      "main": [
+        [
+          {
+            "node": "Armar Prompt Sugerencias",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar Prompt Sugerencias": {
+      "main": [
+        [
+          {
+            "node": "Llamar OpenRouter Sug",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Llamar OpenRouter Sug": {
+      "main": [
+        [
+          {
+            "node": "Parsear Sugerencias",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear Sugerencias": {
+      "main": [
+        [
+          {
+            "node": "Responder Sugerencias",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Handoff": {
+      "main": [
+        [
+          {
+            "node": "Ejecutar Handoff",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ejecutar Handoff": {
+      "main": [
+        [
+          {
+            "node": "Responder Handoff",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "c530981c-8fb1-4f04-9d90-3d79a44fc20d"
+  },
+  "active": false,
+  "tags": [
+    "proto-crm"
+  ]
+}

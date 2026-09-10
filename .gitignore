@@ -1,0 +1,31 @@
+# --- Secretos: NUNCA commitear ---
+.env
+*.local.env
+
+# --- Bases de datos locales (se regeneran) ---
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+
+# --- macOS / metadata de pendrive USB ---
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+
+# --- Logs y datos de n8n/docker ---
+*.log
+n8n/data/
+
+# --- Node (si se agrega front luego) ---
+node_modules/
+dist/

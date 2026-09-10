@@ -1,0 +1,166 @@
+{
+  "name": "ProtoCRM WA Campana Broadcast",
+  "nodes": [
+    {
+      "parameters": {
+        "rules": [
+          {
+            "interval": [
+              {
+                "field": "hours",
+                "hoursInterval": 1
+              }
+            ]
+          }
+        ]
+      },
+      "id": "ffa97406-17e7-4e35-9cf1-cc5fdca9986e",
+      "name": "Cron Diario",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, phone, name\nFROM crm.contacts\nWHERE opt_in = true AND tags ? 'campana-demo'\nORDER BY id;",
+        "options": {}
+      },
+      "id": "20febd90-7110-4458-abd5-313d880f20df",
+      "name": "Obtener Audiencia",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 5,
+        "options": {}
+      },
+      "id": "00dc80bd-8081-472d-ad5f-c45218a85412",
+      "name": "Dividir en Lotes",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 1,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "template",
+        "operation": "send",
+        "sendAs": "api",
+        "phoneNumberId": "={{ $env.WA_PHONE_NUMBER_ID }}",
+        "template": {
+          "name": "={{ $env.WA_TEMPLATE_BIENVENIDA }}",
+          "language": "es_AR"
+        }
+      },
+      "id": "646c75f7-86b5-43a2-bc64-730b8e7f70f7",
+      "name": "Enviar Template",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 2,
+      "position": [
+        660,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO crm.campaign_runs (campaign_name, contact_id, phone, status, sent_at)\nVALUES ('demo', {{ $json.id }}, {{ $json.phone }}, 'enviado', now());",
+        "options": {}
+      },
+      "id": "3f9f808c-6621-49f0-87b0-91259c0ebf45",
+      "name": "Registrar Envio Campana",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        880,
+        -160
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "16a8b585-a921-405c-be32-3be4b3c1ad78",
+      "name": "Campana Terminada",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        660,
+        160
+      ]
+    }
+  ],
+  "connections": {
+    "Cron Diario": {
+      "main": [
+        [
+          {
+            "node": "Obtener Audiencia",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener Audiencia": {
+      "main": [
+        [
+          {
+            "node": "Dividir en Lotes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dividir en Lotes": {
+      "main": [
+        [
+          {
+            "node": "Enviar Template",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Campana Terminada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Template": {
+      "main": [
+        [
+          {
+            "node": "Registrar Envio Campana",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "49f895bf-2b8a-4436-b5f0-bb28da2e03a8"
+  },
+  "active": false,
+  "tags": [
+    "proto-crm"
+  ]
+}

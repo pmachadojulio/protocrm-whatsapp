@@ -1,0 +1,66 @@
+services:
+  # ---------- Base de datos local (reemplaza a Supabase nube: $0) ----------
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=proto
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-change_me_123}
+      - POSTGRES_DB=proto_crm
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      # auto-carga del esquema en el PRIMER arranque (borrar volumen para re-init)
+      - ./supabase/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U proto -d proto_crm"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ---------- Orquestador (webhook Meta + bot + campañas) ----------
+  n8n:
+    image: n8nio/n8n:latest
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_SECURE_COOKIE=false
+      - N8N_PROTOCOL=http
+      - N8N_HOST=${N8N_HOST:-localhost}
+      # secrets consumidos por los workflows via {{ $env.VAR }}
+      - WA_VERIFY_TOKEN=${WA_VERIFY_TOKEN}
+      - WA_ACCESS_TOKEN=${WA_ACCESS_TOKEN}
+      - WA_PHONE_NUMBER_ID=${WA_PHONE_NUMBER_ID}
+      - WA_TEMPLATE_BIENVENIDA=${WA_TEMPLATE_BIENVENIDA}
+      - WA_SEND_KEY=${WA_SEND_KEY}
+      # IA opcional (OpenRouter modelo :free); sin key el bot usa solo reglas SQL
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - LLM_MODEL=${LLM_MODEL:-meta-llama/llama-3.3-70b-instruct:free}
+      - EMPRESA_CTX=${EMPRESA_CTX:-Indumentaria - Horarios Lun-Vie 9-18}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+  # ---------- Interfaz grafica (inbox de agentes, open source) ----------
+  appsmith:
+    image: appsmith/appsmith-ce:latest
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - appsmith_data:/appsmith-stacks
+
+  # ---------- Tunel https temporal para el webhook de Meta ----------
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --url http://n8n:5678
+    depends_on:
+      - n8n
+
+volumes:
+  pg_data:
+  n8n_data:
+  appsmith_data:

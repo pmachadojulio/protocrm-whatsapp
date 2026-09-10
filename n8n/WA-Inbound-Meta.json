@@ -1,0 +1,674 @@
+{
+  "name": "ProtoCRM WA Inbound (Meta Cloud API)",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "wa-inbound",
+        "httpMethod": [
+          "GET",
+          "POST"
+        ],
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "ce523ced-fa4d-4e4d-9e1b-19af66d1de4e",
+      "name": "Webhook Entrante",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "w1-inbound-873a7f62612f"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "16fb780c-3170-4b24-813f-7e4ed86c84c1",
+              "leftValue": "={{ $json.query['hub.mode'] }}",
+              "rightValue": "subscribe",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "077e7c7a-cbf0-4f7f-b2f1-af908e925fb3",
+              "leftValue": "={{ $json.query['hub.verify_token'] }}",
+              "rightValue": "={{ $env.WA_VERIFY_TOKEN }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "d1155162-d2de-4450-b954-1dc647dca1a2",
+      "name": "IF Verificacion Meta",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.query['hub.challenge'] }}",
+        "options": {}
+      },
+      "id": "43d2cfd3-01b6-4ca0-9a1b-ea55dd009292",
+      "name": "Responder Challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        -180
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "OK",
+        "options": {}
+      },
+      "id": "d715c0bc-b8de-4178-be14-e633acc045f0",
+      "name": "ACK 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst body = item.body;\nconst out = [];\nif (body && Array.isArray(body.entry)) {\n  for (const entry of body.entry) {\n    for (const change of (entry.changes || [])) {\n      const value = change.value || {};\n      if (Array.isArray(value.messages)) {\n        for (const m of value.messages) {\n          const meta = value.metadata || {};\n          const profile = (value.contacts && value.contacts[0] && value.contacts[0].profile) ? value.contacts[0].profile : {};\n          let textBody = null;\n          let mediaUrl = null;\n          if (m.type === 'text' && m.text) textBody = m.text.body;\n          else if (m.type === 'button' && m.button) textBody = m.button.text;\n          else if (m.type === 'interactive' && m.interactive) {\n            if (m.interactive.list_reply) textBody = m.interactive.list_reply.title;\n            else if (m.interactive.button_reply) textBody = m.interactive.button_reply.title;\n          } else if (m.type === 'image' && m.image) mediaUrl = m.image.url;\n          else if (m.type === 'audio' && m.audio) mediaUrl = m.audio.url;\n          else if (m.type === 'video' && m.video) mediaUrl = m.video.url;\n          else if (m.type === 'document' && m.document) mediaUrl = m.document.url;\n          else if (m.type === 'sticker' && m.sticker) mediaUrl = m.sticker.url;\n          out.push({\n            message_id: m.id || null,\n            from: m.from || null,\n            profile_name: profile.name || null,\n            timestamp: m.timestamp ? new Date(parseInt(m.timestamp, 10) * 1000).toISOString() : null,\n            phone_number_id: meta.phone_number_id || null,\n            display_phone_number: meta.display_phone_number || null,\n            message_type: m.type || 'unknown',\n            text_body: textBody,\n            media_url: mediaUrl\n          });\n        }\n      }\n    }\n  }\n}\nif (out.length === 0) return [{ json: { guard: true, reason: 'sin mensajes' } }];\nreturn out.map(i => ({ json: i }));"
+      },
+      "id": "b38c08de-e727-474a-9369-2c8b47cd9473",
+      "name": "Parsear Payload Meta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "7fd6ad49-86dc-4070-a132-c4e624954ba7",
+              "leftValue": "={{ $json.guard }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "9651c54e-ca7a-4438-a47a-6538de90202b",
+      "name": "IF Procesar",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        180
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "3d613b2d-772d-4e78-b2fb-aff77d3231ee",
+      "name": "Fin (sin mensajes)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "6dc1b87b-ece7-459a-86a8-88f711951551",
+      "name": "NoOp",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        3000,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO crm.contacts (phone, name, last_seen)\nVALUES ({{ $json.from }}, {{ JSON.stringify($json.profile_name) }}, now())\nON CONFLICT (phone) DO UPDATE SET name = EXCLUDED.name, last_seen = now()\nRETURNING id;",
+        "options": {}
+      },
+      "id": "2d948c80-6b50-42c7-b79b-e930240cf91e",
+      "name": "Upsert Contacto",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO crm.conversations (contact_id, channel, wa_phone_number_id, status, bot_handled, last_message_at)\nVALUES ((SELECT id FROM crm.contacts WHERE phone = {{ $json.from }}), 'whatsapp', {{ JSON.stringify($json.phone_number_id) }}, 'bot', 1, now())\nON CONFLICT (contact_id, channel) DO UPDATE SET\n  last_message_at = now()\nRETURNING id;",
+        "options": {}
+      },
+      "id": "4dbe4e1f-d300-42a6-b3cd-26ce21bf47eb",
+      "name": "Upsert Conversacion",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO crm.messages (conversation_id, direction, message_type, body, media_url, wa_message_id, created_at)\nVALUES (\n  (SELECT id FROM crm.conversations WHERE contact_id = (SELECT id FROM crm.contacts WHERE phone = {{ $json.from }}) AND channel = 'whatsapp'),\n  'in', {{ JSON.stringify($json.message_type) }}, {{ JSON.stringify($json.text_body) }}, {{ JSON.stringify($json.media_url) }}, {{ JSON.stringify($json.message_id) }}, now()\n)\nON CONFLICT (wa_message_id) DO NOTHING;",
+        "options": {}
+      },
+      "id": "c707c964-6207-4ab7-9bb4-ba5f4bd0357b",
+      "name": "Insertar Mensaje Entrante",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT bot_handled, status, last_message_at,\n  (SELECT created_at FROM crm.messages WHERE conversation_id=c.id AND direction='out' ORDER BY created_at DESC LIMIT 1) as last_human_at\nFROM crm.conversations c WHERE contact_id=(SELECT id FROM crm.contacts WHERE phone={{ $json.from }}) AND channel='whatsapp';",
+        "options": {}
+      },
+      "id": "6162a1f6-4eb6-4b63-a2cb-bfb67d7189e9",
+      "name": "Chequear Handoff",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "ac866c39-560f-45a1-a66f-caed9daa7437",
+              "leftValue": "={{ $json.bot_handled }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "6da0f665-8c3d-4b38-89e8-2faf84a0c06a",
+      "name": "IF Handoff Activo",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1750,
+        140
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "017090c5-6c35-4db1-bcf0-108d4df0c408",
+      "name": "Fin Handoff - Bot Pausado",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1900,
+        250
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, keywords, response, priority\nFROM crm.bot_rules\nWHERE active = true\nORDER BY priority ASC, id ASC;",
+        "options": {}
+      },
+      "id": "c0d99607-5cc8-4bcf-859a-dbf0e1b088bf",
+      "name": "Cargar Reglas Bot",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1700,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg = $input.first().json;\nconst rules = $('Cargar Reglas Bot').all();\nconst text = (msg.text_body || '').toLowerCase();\nlet reply = null;\nfor (const r of rules) {\n  const kws = (r.json.keywords || '').split(',').map(k => k.trim().toLowerCase()).filter(Boolean);\n  if (kws.some(k => text.includes(k))) { reply = r.json.response; break; }\n}\nconst hasKey = !!(process.env.OPENROUTER_API_KEY || '');\nlet need_llm = false;\nif (!reply) {\n  if (hasKey) {\n    need_llm = true;\n  } else if (/^(hola|buenas|buen dia|buenos dias|hello|hey)/.test(text)) {\n    reply = 'Hola! Gracias por escribirnos. Como podemos ayudarte?';\n  } else {\n    reply = 'Hola, gracias por escribirnos. Un asesor te respondera a la brevedad.';\n  }\n}\nreturn [{ json: { ...msg, reply, need_llm } }];"
+      },
+      "id": "d361c059-91d4-4480-a318-1e2a782a2d43",
+      "name": "Decidir Respuesta Bot",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1900,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "26376ccc-a0b8-474a-9804-a8ecb5d07408",
+              "leftValue": "={{ $json.need_llm }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "9ca497d6-d6ca-4eeb-9878-659f9fb0512d",
+      "name": "IF Pide IA",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2100,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT direction, body\nFROM crm.messages\nWHERE conversation_id = (\n  SELECT id FROM crm.conversations\n  WHERE contact_id = (SELECT id FROM crm.contacts WHERE phone = {{ $json.from }})\n    AND channel = 'whatsapp')\nORDER BY created_at DESC\nLIMIT 10;",
+        "options": {}
+      },
+      "id": "96458b7f-7058-4230-a674-81d755614c0c",
+      "name": "Historial Reciente",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        2320,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const cur = $('Decidir Respuesta Bot').first().json;\nconst hist = $input.all().reverse()\n  .filter(i => i.json.body)\n  .map(i => ({ role: i.json.direction === 'in' ? 'user' : 'assistant', content: String(i.json.body) }));\nconst empresa = process.env.EMPRESA_CTX || 'Empresa de indumentaria. Horarios: Lunes a viernes 9-18, sábados 9-13. Turnos: sin turno previo.';\nconst sys = 'Sos el asistente de ' + empresa + ' por WhatsApp. '\n  + 'Respondé en espanol rioplatense, breve (maximo 2-3 frases), amable y concreto. '\n  + 'Usa el contexto de la empresa para horarios, turnos y direccion. Si no tenes la informacion, ofrecé derivar a un agente humano. No inventes precios ni promesas.';\nconst payload = {\n  model: process.env.LLM_MODEL || 'meta-llama/llama-3.3-70b-instruct:free',\n  max_tokens: 200,\n  temperature: 0.6,\n  messages: [{ role: 'system', content: sys }].concat(hist).concat([{ role: 'user', content: cur.text_body || '' }])\n};\nreturn [{ json: { payload, cur } }];"
+      },
+      "id": "3d1365d3-39c7-4a26-a303-e2111fd9c350",
+      "name": "Armar Prompt IA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2540,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.OPENROUTER_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "a332ece4-6ced-4d10-bffc-4f3ace74ec0f",
+      "name": "Llamar OpenRouter",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2760,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const base = $('Armar Prompt IA').first().json.cur;\nlet reply = null;\ntry {\n  const out = $input.first().json;\n  reply = out.choices && out.choices[0] && out.choices[0].message ? (out.choices[0].message.content || '').trim() : null;\n} catch (e) { reply = null; }\nif (!reply) {\n  const text = (base.text_body || '').toLowerCase();\n  if (/^(hola|buenas|buen dia|buenos dias|hello|hey)/.test(text)) {\n    reply = 'Hola! Gracias por escribirnos. Como podemos ayudarte?';\n  } else {\n    reply = 'Hola, gracias por escribirnos. Un asesor te respondera a la brevedad.';\n  }\n}\nreturn [{ json: { ...base, reply, answered_by_ai: true } }];"
+      },
+      "id": "2eab7012-9728-40a1-a11c-965f5547e865",
+      "name": "Parsear Respuesta IA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2980,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendAs": "api",
+        "phoneNumberId": "={{ $env.WA_PHONE_NUMBER_ID }}",
+        "message": {
+          "content": "={{ $json.reply }}"
+        }
+      },
+      "id": "63897be0-84b4-4775-a55a-c9cc0cf0ad61",
+      "name": "Enviar Respuesta",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 2,
+      "position": [
+        2100,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO crm.messages (conversation_id, direction, message_type, body, wa_message_id, created_at)\nVALUES (\n  (SELECT id FROM crm.conversations WHERE contact_id = (SELECT id FROM crm.contacts WHERE phone = {{ $json.from }}) AND channel = 'whatsapp'),\n  'out', 'text', {{ JSON.stringify($json.reply) }}, {{ JSON.stringify($json.message_id) }}, now()\n);",
+        "options": {}
+      },
+      "id": "fd18d32e-9077-4262-83c5-7cb2a04998a6",
+      "name": "Insertar Mensaje Saliente",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        2300,
+        60
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Entrante": {
+      "main": [
+        [
+          {
+            "node": "IF Verificacion Meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Verificacion Meta": {
+      "main": [
+        [
+          {
+            "node": "Responder Challenge",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ACK 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ACK 200": {
+      "main": [
+        [
+          {
+            "node": "Parsear Payload Meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear Payload Meta": {
+      "main": [
+        [
+          {
+            "node": "IF Procesar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Procesar": {
+      "main": [
+        [
+          {
+            "node": "Fin (sin mensajes)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Upsert Contacto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Contacto": {
+      "main": [
+        [
+          {
+            "node": "Upsert Conversacion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Conversacion": {
+      "main": [
+        [
+          {
+            "node": "Insertar Mensaje Entrante",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insertar Mensaje Entrante": {
+      "main": [
+        [
+          {
+            "node": "Chequear Handoff",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chequear Handoff": {
+      "main": [
+        [
+          {
+            "node": "IF Handoff Activo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Handoff Activo": {
+      "main": [
+        [
+          {
+            "node": "Fin Handoff - Bot Pausado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cargar Reglas Bot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cargar Reglas Bot": {
+      "main": [
+        [
+          {
+            "node": "Decidir Respuesta Bot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decidir Respuesta Bot": {
+      "main": [
+        [
+          {
+            "node": "IF Pide IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Pide IA": {
+      "main": [
+        [
+          {
+            "node": "Historial Reciente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar Respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Historial Reciente": {
+      "main": [
+        [
+          {
+            "node": "Armar Prompt IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar Prompt IA": {
+      "main": [
+        [
+          {
+            "node": "Llamar OpenRouter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Llamar OpenRouter": {
+      "main": [
+        [
+          {
+            "node": "Parsear Respuesta IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear Respuesta IA": {
+      "main": [
+        [
+          {
+            "node": "Enviar Respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Respuesta": {
+      "main": [
+        [
+          {
+            "node": "Insertar Mensaje Saliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "b4232501-fb7e-4db2-b686-4de9eb8013ff"
+  },
+  "active": false,
+  "tags": [
+    "proto-crm"
+  ]
+}

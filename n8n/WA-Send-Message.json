@@ -1,0 +1,205 @@
+{
+  "name": "ProtoCRM WA Send Message (lanzador)",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "wa-send",
+        "httpMethod": "POST",
+        "responseMode": "onReceived",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "fb1bc442-a9b3-47d0-ad3f-cfd545012dd1",
+      "name": "Lanzador de Envio",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "w2-send-c6bf506d8c76"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst body = item.body || {};\nconst headers = item.headers || {};\nconst sendKey = headers['x-api-key'] || headers['X-Api-Key'] || '';\nif (sendKey !== (process.env.WA_SEND_KEY || '')) {\n  return [{ json: { ok: 'no', reason: 'x-api-key invalida' } }];\n}\nconst to = String(body.to || '').replace(/[^0-9]/g, '');\nconst text = typeof body.text === 'string' ? body.text.trim() : '';\nif (!to || !text) return [{ json: { ok: 'no', reason: 'faltan to o text' } }];\nreturn [{ json: { ok: 'si', to, text } }];"
+      },
+      "id": "a668f0ac-cc17-446a-8161-547ff7314862",
+      "name": "Validar y Armar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "9f01d5d2-28f5-45da-9597-5db6d61c21ff",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "si",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "e000b1cd-2c41-4bcb-82c1-4c610de92de8",
+      "name": "IF Envio Valido",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "d1e6dc06-8906-4245-b95e-06389b163b8b",
+      "name": "Fin (invalido)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        660,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendAs": "api",
+        "phoneNumberId": "={{ $env.WA_PHONE_NUMBER_ID }}",
+        "to": "={{ $json.to }}",
+        "message": {
+          "content": "={{ $json.text }}"
+        }
+      },
+      "id": "4e63d6e2-7c1b-497e-83f2-fbeeb447770c",
+      "name": "Enviar Mensaje",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO crm.messages (conversation_id, direction, message_type, body, created_at)\nVALUES (\n  (SELECT id FROM crm.conversations WHERE contact_id = (SELECT id FROM crm.contacts WHERE phone = {{ $json.to }}) AND channel = 'whatsapp'),\n  'out', 'text', {{ JSON.stringify($json.text) }}, now()\n);",
+        "options": {}
+      },
+      "id": "4cf27a71-1825-40da-abb9-91f84adee137",
+      "name": "Registrar Envio",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE crm.conversations SET bot_handled=0, status='open', last_message_at=now(), updated_at=now()\nWHERE contact_id=(SELECT id FROM crm.contacts WHERE phone={{ $json.to }}) AND channel='whatsapp';",
+        "options": {}
+      },
+      "id": "0aea4143-36cb-4372-8735-f3ed732ffdaf",
+      "name": "Handoff a Humano",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1060,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Lanzador de Envio": {
+      "main": [
+        [
+          {
+            "node": "Validar y Armar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar y Armar": {
+      "main": [
+        [
+          {
+            "node": "IF Envio Valido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Envio Valido": {
+      "main": [
+        [
+          {
+            "node": "Fin (invalido)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar Mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Mensaje": {
+      "main": [
+        [
+          {
+            "node": "Registrar Envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar Envio": {
+      "main": [
+        [
+          {
+            "node": "Handoff a Humano",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "87b8c946-5600-4c28-9b15-faa7fcb4810e"
+  },
+  "active": false,
+  "tags": [
+    "proto-crm"
+  ]
+}
