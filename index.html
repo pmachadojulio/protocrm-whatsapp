@@ -65,6 +65,20 @@
   .menuHeader.collapsed .arrow { transform:rotate(-90deg); }
   @media (max-width:900px){ #contactsDrawer { width:85vw; } }
   #topBar .who { font-size:12px; color:var(--dim); }
+  .hidden { display:none !important; }
+  #viewTabs button { font-size:13px; }
+  .kanban { display:grid; grid-template-columns:repeat(5, 1fr); gap:10px; }
+  @media (max-width:900px){ .kanban { grid-template-columns:1fr; } }
+  .kcol { background:#0b1424; border:1px solid var(--line); border-radius:8px; padding:8px; min-height:140px; }
+  .kcol h3 { font-size:12px; color:var(--accent); margin-bottom:8px; display:flex; justify-content:space-between; text-transform:capitalize; }
+  .kcard { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:8px; margin-bottom:6px; font-size:12px; }
+  .kcard .amt { color:var(--ok); font-weight:700; }
+  .kcard .mv { display:flex; gap:4px; margin-top:6px; }
+  .kcard .mv button { font-size:11px; padding:2px 8px; }
+  .tl-item { border-left:2px solid var(--line); padding:6px 0 6px 12px; margin-left:6px; font-size:13px; }
+  .tl-item .when { color:var(--dim); font-size:11px; }
+  .breach { border:1px solid var(--err) !important; }
+  .breachTag { background:#450a0a !important; color:var(--err) !important; border:1px solid var(--err) !important; }
 </style>
 </head>
 <body>
@@ -141,6 +155,14 @@
   </div>
 </div>
 
+<div class="row" id="viewTabs" style="margin-bottom:12px">
+  <button id="vInbox" style="background:var(--accent); color:#06283a">Inbox</button>
+  <button id="vPipe" style="background:#0b1424; color:var(--txt)">Pipeline</button>
+  <button id="vTimeline" style="background:#0b1424; color:var(--txt)">Ficha cliente</button>
+  <button id="vTickets" style="background:#0b1424; color:var(--txt)">Tickets</button>
+</div>
+<div id="viewInbox">
+
 <div class="card">
   <h2>2. Simular mensaje entrante de Meta</h2>
   <div class="row">
@@ -173,6 +195,7 @@
       <button id="btnPausar" style="font-size:12px; padding:4px 8px">Pausar bot</button>
       <button id="btnReanudar" style="font-size:12px; padding:4px 8px">Devolver al bot</button>
       <button id="btnCerrar" style="font-size:12px; padding:4px 8px; background:#334155">Finalizar</button>
+      <button id="btnReabrir" style="font-size:12px; padding:4px 8px; background:#334155; display:none">Reabrir</button>
     </div>
     <div id="sugWrap" style="display:none">
       <div class="row" style="margin-top:10px">
@@ -187,6 +210,70 @@
         <button id="btnSend">Responder</button>
       </div>
     </div>
+  </div>
+</div>
+</div><!-- /viewInbox -->
+
+<div id="viewPipe" class="hidden">
+  <div class="card">
+    <div class="bar"><h2>Pipeline de ventas</h2><span id="pipeTotal" class="tag"></span></div>
+    <div class="row">
+      <input id="oppPhone" style="width:170px" placeholder="Teléfono (54911...)">
+      <input id="oppTitle" style="flex:1" placeholder="Título (ej: Presupuesto camperas x10)">
+      <input id="oppAmount" type="number" min="0" style="width:130px" placeholder="$ monto">
+      <button id="btnOppCreate">Nueva oportunidad</button>
+    </div>
+    <div id="kanban" class="kanban"></div>
+  </div>
+</div>
+
+<div id="viewTimeline" class="hidden">
+  <div class="card">
+    <div class="bar"><h2>Ficha 360 del cliente</h2><span id="tlMeta" class="tag"></span></div>
+    <div class="row">
+      <input id="tlPhone" style="width:220px" placeholder="Teléfono (54911...)">
+      <button id="btnTlLoad">Cargar ficha</button>
+    </div>
+    <div id="tlContact"></div>
+    <div class="row" style="margin-top:8px">
+      <select id="noteKind" style="background:#0b1424; color:var(--txt); border:1px solid var(--line); border-radius:6px; padding:6px 10px">
+        <option value="note">Nota</option>
+        <option value="task">Tarea</option>
+        <option value="call">Llamada</option>
+        <option value="visit">Visita</option>
+      </select>
+      <input id="noteBody" style="flex:1" placeholder="Agregar nota, tarea, registro de llamada...">
+      <button id="btnNoteAdd">Agregar</button>
+    </div>
+    <div id="tlList" style="margin-top:10px"><div class="empty">Cargá un teléfono para ver su historial unificado.</div></div>
+  </div>
+</div>
+
+<div id="viewTickets" class="hidden">
+  <div class="card">
+    <div class="bar"><h2>Tickets y SLA</h2><span id="tickCount" class="tag"></span></div>
+    <div class="row">
+      <select id="tickFilter" style="background:#0b1424; color:var(--txt); border:1px solid var(--line); border-radius:6px; padding:6px 10px">
+        <option value="">Todos</option>
+        <option value="abierto">Abiertos</option>
+        <option value="en_progreso">En progreso</option>
+        <option value="resuelto">Resueltos</option>
+        <option value="cerrado">Cerrados</option>
+      </select>
+      <button id="btnTickLoad">Ver</button>
+    </div>
+    <div class="row">
+      <input id="tickPhone" style="width:170px" placeholder="Teléfono">
+      <input id="tickSubject" style="flex:1" placeholder="Asunto del ticket">
+      <select id="tickPrio" style="background:#0b1424; color:var(--txt); border:1px solid var(--line); border-radius:6px; padding:6px 10px">
+        <option value="baja">Baja (72h)</option>
+        <option value="normal" selected>Normal (24h)</option>
+        <option value="alta">Alta (8h)</option>
+        <option value="critica">Crítica (2h)</option>
+      </select>
+      <button id="btnTickCreate">Abrir ticket</button>
+    </div>
+    <div id="tickList" style="margin-top:10px"></div>
   </div>
 </div>
 
@@ -400,6 +487,9 @@
     $('sugWrap').style.display = '';
     $('handoffBox').style.display = '';
     updateHandoffBadge();
+    var isClosed = c.status === 'closed';
+    $('btnReabrir').style.display = isClosed ? '' : 'none';
+    $('btnCerrar').style.display = isClosed ? 'none' : '';
     // habilitar/deshabilitar respuesta según asignación
     var isOther = c.assignee_id && currentUser && c.assignee_id!==currentUser.user_id;
     $('replyText').disabled = !!isOther;
@@ -635,6 +725,197 @@
   updateLoginUI = function(){
     _origUpdateLoginUI();
     if(currentUser) loadContacts();
+  };
+
+  /* ============ Fase B: vistas CRM ============ */
+  var STAGE_ORDER = ['nuevo','contactado','cotizado','ganado','perdido'];
+  var TICK_FLOW = { 'abierto':'en_progreso', 'en_progreso':'resuelto', 'resuelto':'cerrado', 'cerrado':null };
+  var VIEW_BTN = { inbox:'vInbox', pipe:'vPipe', timeline:'vTimeline', tickets:'vTickets' };
+  function switchView(v) {
+    var map = { inbox:'viewInbox', pipe:'viewPipe', timeline:'viewTimeline', tickets:'viewTickets' };
+    Object.keys(map).forEach(function (k) {
+      $(map[k]).classList.toggle('hidden', k !== v);
+      var b = $(VIEW_BTN[k]);
+      b.style.background = k === v ? 'var(--accent)' : '#0b1424';
+      b.style.color = k === v ? '#06283a' : 'var(--txt)';
+    });
+    if (v === 'pipe') loadPipe();
+    if (v === 'tickets') loadTickets();
+  }
+  $('vInbox').onclick = function () { switchView('inbox'); };
+  $('vPipe').onclick = function () { switchView('pipe'); };
+  $('vTimeline').onclick = function () { switchView('timeline'); };
+  $('vTickets').onclick = function () { switchView('tickets'); };
+
+  function fmtMoney(n) {
+    var v = Number(n || 0);
+    return '$' + v.toLocaleString('es-AR', { maximumFractionDigits: 0 });
+  }
+
+  /* ---- Pipeline / kanban ---- */
+  function loadPipe() {
+    api('/webhook/opportunities').then(function (txt) {
+      var data;
+      try { data = JSON.parse(txt); } catch (e) { log('Error pipeline: ' + txt.slice(0, 120)); return; }
+      if (!Array.isArray(data)) data = data.data || [];
+      var total = 0, open = 0;
+      var byStage = {};
+      STAGE_ORDER.forEach(function (s) { byStage[s] = []; });
+      data.forEach(function (o) {
+        if (!byStage[o.stage]) byStage[o.stage] = [];
+        byStage[o.stage].push(o);
+        total += Number(o.amount || 0);
+        if (['nuevo','contactado','cotizado'].indexOf(o.stage) >= 0) open += Number(o.amount || 0);
+      });
+      $('pipeTotal').textContent = 'Abierto: ' + fmtMoney(open) + ' · Total: ' + fmtMoney(total);
+      var kb = $('kanban');
+      kb.innerHTML = '';
+      STAGE_ORDER.forEach(function (st, idx) {
+        var col = document.createElement('div');
+        col.className = 'kcol';
+        var sum = byStage[st].reduce(function (a, o) { return a + Number(o.amount || 0); }, 0);
+        col.innerHTML = '<h3><span>' + st + '</span><span>' + byStage[st].length + ' · ' + fmtMoney(sum) + '</span></h3>';
+        if (!byStage[st].length) col.innerHTML += '<div class="empty">—</div>';
+        byStage[st].forEach(function (o) {
+          var card = document.createElement('div');
+          card.className = 'kcard';
+          card.innerHTML = '<div style="font-weight:600">' + esc(o.title) + '</div>' +
+            '<div style="color:var(--dim)">' + esc(o.contact_name) + ' · ' + esc(o.phone) + '</div>' +
+            '<div class="amt">' + fmtMoney(o.amount) + '</div>' +
+            '<div class="mv">' +
+            (idx > 0 ? '<button data-mv="-1">◀</button>' : '') +
+            (idx < STAGE_ORDER.length - 1 ? '<button data-mv="1">▶</button>' : '') +
+            '</div>';
+          Array.prototype.forEach.call(card.querySelectorAll('button'), function (b) {
+            b.onclick = function () { moveOpp(o.id, STAGE_ORDER[idx + Number(b.getAttribute('data-mv'))]); };
+          });
+          col.appendChild(card);
+        });
+        kb.appendChild(col);
+      });
+    }).catch(function (e) { log('Error pipeline: ' + e.message); });
+  }
+  function moveOpp(id, stage) {
+    api('/webhook/opportunities/move', { method: 'POST', body: { id: id, stage: stage } }).then(function () { loadPipe(); });
+  }
+  $('btnOppCreate').onclick = function () {
+    var phone = $('oppPhone').value.trim(), title = $('oppTitle').value.trim();
+    var amount = Number($('oppAmount').value || 0);
+    if (!phone || !title) { log('Oportunidad: falta teléfono o título'); return; }
+    api('/webhook/opportunities', { method: 'POST', body: { phone: phone, title: title, amount: amount } }).then(function (txt) {
+      log('Oportunidad creada: ' + txt.slice(0, 100));
+      $('oppPhone').value = ''; $('oppTitle').value = ''; $('oppAmount').value = '';
+      loadPipe();
+    }).catch(function (e) { log('Error creando oportunidad: ' + e.message); });
+  };
+
+  /* ---- Ficha 360 ---- */
+  var KIND_ICON = { note: '📝', task: '✅', call: '📞', visit: '📍' };
+  function loadTimeline() {
+    var phone = $('tlPhone').value.trim();
+    if (!phone) { log('Ficha: ingresá un teléfono'); return; }
+    api('/webhook/timeline?phone=' + encodeURIComponent(phone)).then(function (txt) {
+      var d;
+      try { d = JSON.parse(txt); } catch (e) { log('Error ficha: ' + txt.slice(0, 120)); return; }
+      if (d.error) { log('Ficha: ' + d.error); return; }
+      var c = d.contact;
+      $('tlMeta').textContent = c.phone + ' · ' + (c.name || 'Sin nombre');
+      $('tlContact').innerHTML = '<div class="row" style="margin-top:8px"><span class="tag">' + esc(c.name || 'Sin nombre') + '</span>' +
+        '<span class="tag">' + esc(c.phone) + '</span>' +
+        '<span class="tag">' + d.opportunities.length + ' oportunidades</span>' +
+        '<span class="tag">' + d.tickets.length + ' tickets</span></div>';
+      var evs = [];
+      (d.conversations || []).forEach(function (cv) {
+        (cv.messages || []).forEach(function (m) {
+          evs.push({ at: m.created_at, html: (m.direction === 'in' ? '📩 <b>Cliente:</b> ' : '📤 <b>' + esc(m.created_by_name || 'Bot') + ':</b> ') + esc(m.body || '') });
+        });
+      });
+      (d.notes || []).forEach(function (n) {
+        evs.push({ at: n.created_at, html: (KIND_ICON[n.kind] || '📝') + ' <b>' + esc(n.kind) + (n.done ? ' ✓' : '') + ':</b> ' + esc(n.body) +
+          ' <span class="tag">' + esc(n.created_by_name || '') + '</span>' +
+          (n.kind === 'task' && !n.done ? ' <button data-notedone="' + n.id + '" style="font-size:11px; padding:2px 8px">Completar</button>' : '') });
+      });
+      (d.opportunities || []).forEach(function (o) {
+        evs.push({ at: o.updated_at, html: '💰 <b>Oportunidad [' + esc(o.stage) + ']:</b> ' + esc(o.title) + ' (' + fmtMoney(o.amount) + ')' });
+      });
+      (d.tickets || []).forEach(function (t) {
+        evs.push({ at: t.created_at, html: '🎫 <b>Ticket [' + esc(t.status) + ']:</b> ' + esc(t.subject || '') + (t.breached ? ' <span class="tag breachTag">SLA vencido</span>' : '') });
+      });
+      evs.sort(function (a, b) { return (b.at || '') < (a.at || '') ? -1 : 1; });
+      var box = $('tlList');
+      box.innerHTML = '';
+      if (!evs.length) { box.innerHTML = '<div class="empty">Sin actividad.</div>'; return; }
+      evs.slice(0, 200).forEach(function (e) {
+        var div = document.createElement('div');
+        div.className = 'tl-item';
+        div.innerHTML = e.html + '<div class="when">' + fmtDate(e.at) + '</div>';
+        box.appendChild(div);
+      });
+      Array.prototype.forEach.call(box.querySelectorAll('[data-notedone]'), function (b) {
+        b.onclick = function () {
+          api('/webhook/notes/done', { method: 'POST', body: { id: b.getAttribute('data-notedone') } }).then(function () { loadTimeline(); });
+        };
+      });
+    }).catch(function (e) { log('Error ficha: ' + e.message); });
+  }
+  $('btnTlLoad').onclick = loadTimeline;
+  $('btnNoteAdd').onclick = function () {
+    var phone = $('tlPhone').value.trim(), bodyTxt = $('noteBody').value.trim();
+    if (!phone || !bodyTxt) { log('Nota: falta teléfono o texto'); return; }
+    api('/webhook/notes', { method: 'POST', body: { phone: phone, kind: $('noteKind').value, body: bodyTxt } }).then(function () {
+      $('noteBody').value = '';
+      loadTimeline();
+    }).catch(function (e) { log('Error nota: ' + e.message); });
+  };
+
+  /* ---- Tickets ---- */
+  function loadTickets() {
+    var st = $('tickFilter').value;
+    var url = '/webhook/tickets' + (st ? '?status=' + encodeURIComponent(st) : '');
+    api(url).then(function (txt) {
+      var data;
+      try { data = JSON.parse(txt); } catch (e) { log('Error tickets: ' + txt.slice(0, 120)); return; }
+      $('tickCount').textContent = data.length + ' tickets';
+      var box = $('tickList');
+      box.innerHTML = '';
+      if (!data.length) { box.innerHTML = '<div class="empty">Sin tickets.</div>'; return; }
+      data.forEach(function (t) {
+        var d = document.createElement('div');
+        d.className = 'conv' + (t.breached ? ' breach' : '');
+        d.innerHTML = '<div class="who"><span>' + esc(t.subject || 'Sin asunto') + '</span>' +
+          '<span class="tag' + (t.breached ? ' breachTag' : '') + '">' + esc(t.priority) + ' · ' + esc(t.status) + (t.breached ? ' · SLA vencido' : '') + '</span></div>' +
+          '<div class="last">' + esc(t.contact_name || '') + ' · ' + esc(t.phone || '') + (t.assignee_name ? ' · @' + esc(t.assignee_name) : '') + '</div>' +
+          '<div class="meta">SLA: ' + fmtDate(t.sla_due) + ' · abierto ' + fmtDate(t.created_at) + '</div>' +
+          (TICK_FLOW[t.status] ? '<div class="row" style="margin-top:6px"><button data-tick="' + t.id + '" data-next="' + TICK_FLOW[t.status] + '" style="font-size:11px; padding:2px 8px">Pasar a ' + TICK_FLOW[t.status].replace('_', ' ') + '</button></div>' : '');
+        box.appendChild(d);
+      });
+      Array.prototype.forEach.call(box.querySelectorAll('[data-tick]'), function (b) {
+        b.onclick = function () {
+          api('/webhook/tickets/status', { method: 'POST', body: { id: b.getAttribute('data-tick'), status: b.getAttribute('data-next') } }).then(function () { loadTickets(); });
+        };
+      });
+    }).catch(function (e) { log('Error tickets: ' + e.message); });
+  }
+  $('btnTickLoad').onclick = loadTickets;
+  $('tickFilter').onchange = loadTickets;
+  $('btnTickCreate').onclick = function () {
+    var phone = $('tickPhone').value.trim(), subject = $('tickSubject').value.trim();
+    if (!phone) { log('Ticket: falta teléfono'); return; }
+    api('/webhook/tickets', { method: 'POST', body: { phone: phone, subject: subject || 'Sin asunto', priority: $('tickPrio').value } }).then(function (txt) {
+      log('Ticket creado: ' + txt.slice(0, 120));
+      $('tickPhone').value = ''; $('tickSubject').value = '';
+      loadTickets();
+    }).catch(function (e) { log('Error ticket: ' + e.message); });
+  };
+  $('btnReabrir').onclick = function () {
+    if (!currentConv) return;
+    api('/webhook/conversations/reopen', { method: 'POST', body: { conv_id: currentConv.conversation_id } }).then(function () {
+      log('Conversación reabierta (vuelve al bot)');
+      currentConv = null;
+      $('replyBox').style.display = 'none'; $('handoffBox').style.display = 'none'; $('sugWrap').style.display = 'none';
+      $('msgList').innerHTML = '<div class="empty">Selecciona una conversacion.</div>';
+      loadConvos();
+    });
   };
 
   loadCfg();

@@ -26,7 +26,7 @@ create table crm.contacts (
 create table crm.agents (
     id           uuid primary key default gen_random_uuid(),
     username     text unique not null,
-    pass_hash    text, -- hash sha256 para mock / login local; en produccion usar Supabase Auth
+    pass_hash    text, -- hash pbkdf2 (mock) ; en produccion usar Supabase Auth
     display_name text,
     role         text not null default 'agent' check (role in ('agent', 'supervisor', 'admin')),
     active       boolean not null default true,
@@ -68,15 +68,47 @@ create table crm.messages (
 -- ---------- TICKETS (casos con prioridad/SLA) ----------
 create table crm.tickets (
     id              uuid primary key default gen_random_uuid(),
-    conversation_id uuid not null references crm.conversations(id) on delete cascade,
+    conversation_id uuid references crm.conversations(id) on delete cascade,
+    contact_id      uuid references crm.contacts(id) on delete cascade,
     subject         text,
     priority        text not null default 'normal'
                     check (priority in ('baja', 'normal', 'alta', 'critica')),
     status          text not null default 'abierto'
                     check (status in ('abierto', 'en_progreso', 'resuelto', 'cerrado')),
     assignee_id     uuid references crm.agents(id) on delete set null,
+    sla_due         timestamptz,   -- vencimiento SLA = created_at + horas según prioridad
     created_at      timestamptz not null default now(),
     closed_at       timestamptz
+);
+
+-- ---------- PIPELINE (oportunidades de venta / kanban) ----------
+create table crm.opportunities (
+    id         uuid primary key default gen_random_uuid(),
+    contact_id uuid not null references crm.contacts(id) on delete cascade,
+    title      text not null,
+    amount     numeric not null default 0,
+    currency   text not null default 'ARS',
+    stage      text not null default 'nuevo'
+               check (stage in ('nuevo', 'contactado', 'cotizado', 'ganado', 'perdido')),
+    notes      text not null default '',
+    created_by uuid references crm.agents(id) on delete set null,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now(),
+    closed_at  timestamptz
+);
+
+-- ---------- NOTAS Y ACTIVIDADES (timeline del contacto) ----------
+create table crm.notes (
+    id              uuid primary key default gen_random_uuid(),
+    contact_id      uuid not null references crm.contacts(id) on delete cascade,
+    conversation_id uuid references crm.conversations(id) on delete set null,
+    kind            text not null default 'note'
+                    check (kind in ('note', 'task', 'call', 'visit')),
+    body            text not null,
+    due_at          timestamptz,
+    done            boolean not null default false,
+    created_by      uuid references crm.agents(id) on delete set null,
+    created_at      timestamptz not null default now()
 );
 
 -- ---------- BOT (reglas por keyword, v0) ----------
@@ -124,6 +156,9 @@ create index if not exists idx_conv_status  on crm.conversations (status, last_m
 create index if not exists idx_msg_conv     on crm.messages (conversation_id, created_at);
 create index if not exists idx_contact_tags on crm.contacts using gin (tags);
 create index if not exists idx_tickets_st   on crm.tickets (status, priority);
+create index if not exists idx_opp_stage    on crm.opportunities (stage, updated_at desc);
+create index if not exists idx_opp_contact  on crm.opportunities (contact_id);
+create index if not exists idx_notes_ct     on crm.notes (contact_id, created_at desc);
 
 -- ---------- updated_at automatico ----------
 create or replace function crm.set_updated_at() returns trigger as $$
@@ -138,6 +173,9 @@ create trigger trg_contacts_updated
     for each row execute function crm.set_updated_at();
 create trigger trg_conversations_updated
     before update on crm.conversations
+    for each row execute function crm.set_updated_at();
+create trigger trg_opportunities_updated
+    before update on crm.opportunities
     for each row execute function crm.set_updated_at();
 
 -- ---------- vista INBOX (bandeja del agente) ----------
@@ -170,6 +208,8 @@ alter table crm.agents        enable row level security;
 alter table crm.conversations enable row level security;
 alter table crm.messages      enable row level security;
 alter table crm.tickets       enable row level security;
+alter table crm.opportunities enable row level security;
+alter table crm.notes         enable row level security;
 alter table crm.bot_rules     enable row level security;
 alter table crm.templates     enable row level security;
 alter table crm.campaigns     enable row level security;
@@ -190,8 +230,12 @@ begin
         execute 'create policy p_convs_write    on crm.conversations for all to authenticated using (true) with check (true)';
         execute 'create policy p_msgs_read      on crm.messages      for select to authenticated using (true)';
         execute 'create policy p_msgs_write     on crm.messages      for all to authenticated using (true) with check (true)';
-        execute 'create policy p_tickets_read   on crm.tickets       for select to authenticated using (true)';
-        execute 'create policy p_tickets_write  on crm.tickets       for all to authenticated using (true) with check (true)';
+        execute 'create policy p_tickets_read     on crm.tickets       for select to authenticated using (true)';
+        execute 'create policy p_tickets_write    on crm.tickets       for all to authenticated using (true) with check (true)';
+        execute 'create policy p_opp_read         on crm.opportunities for select to authenticated using (true)';
+        execute 'create policy p_opp_write        on crm.opportunities for all to authenticated using (true) with check (true)';
+        execute 'create policy p_notes_read       on crm.notes         for select to authenticated using (true)';
+        execute 'create policy p_notes_write      on crm.notes         for all to authenticated using (true) with check (true)';
         execute 'create policy p_rules_read     on crm.bot_rules     for select to authenticated using (true)';
         execute 'create policy p_templates_read on crm.templates     for select to authenticated using (true)';
     end if;

@@ -226,3 +226,25 @@ Estado del mock al entregar: `mock.db` borrado para demo fresca (seed: 1 contact
 * `n8n/generar_workflows.py:54` (W1 Inbound con `Chequear Handoff`/`IF Handoff Activo`), `W2 Handoff a Humano`, `W4 wa-suggest` + `wa-handoff`/`claim`/`close`, `WA-Send-Message.json:24` (X-Api-Key), `index.html:50` (login overlay) y `drawers` con tabs `Cola/Mías/Finalizadas`.
 
 > Nota Obsidian: esta carpeta está dentro del vault `Automatizacion procesos` (`.obsidian` en ese nivel), cualquier `.md` editado acá aparece solo en Obsidian (Ctrl+R si no refresca).
+
+---
+
+## 11. Fase A+B — de proto a CRM (2026-09-13)
+
+**Fase A (endurecer, mismo stack) — hecho y testeado (`test_fase_a.py`: 38/38):**
+- Passwords `sha256` → **PBKDF2-HMAC-SHA256** (200k iter, salt aleatoria) con **migración transparente** en el próximo login (verificado sobre `mock.db` real).
+- **Auth en todos los endpoints** (`wa-inbox`, `wa-msgs`, `wa-suggest`, `wa-handoff`, `contacts`, `claim/close/reopen`, `import`, CRM nuevos). Públicos solo: `auth-login`, `wa-inbound`, `/health`.
+- **Sesiones persistentes** en tabla `sessions` (sobreviven reinicios, expiración `SESSION_DAYS`, una activa por usuario, logout invalida).
+- **Firma Meta**: `wa-inbound` exige `X-Hub-Signature-256` si hay `WA_APP_SECRET`; verificación `GET hub.mode=subscribe` con `WA_VERIFY_TOKEN`.
+- **`WA_SEND_KEY` también en mock** (antes solo n8n) + avisos de arranque si falta secreto.
+- **Paginación** (`?limit=&offset=`, `?paged=1` → envelope `{data,total,limit,offset}`) y **sanitización** (teléfonos, largos, tags, tope 2000/lote en import).
+- **`backup.py`** (rotación últimas 10 + hint `pg_dump`) y `backups/` ignorado en git.
+- Nuevas vars en `.env.example`: `WA_APP_SECRET`, `SESSION_DAYS`.
+
+**Fase B (corazón CRM) — hecho:**
+- Tablas `opportunities` (title, amount, stage: nuevo/contactado/cotizado/ganado/perdido), `notes` (note/task/call/visit + due/done), `tickets` (SQLite la suma; SLA por prioridad: critica 2h, alta 8h, normal 24h, baja 72h + flag `breached`). `schema.sql` Postgres sincronizado (RLS + policies + índices).
+- Endpoints: `opportunities` + `opportunities/move`, `timeline` (ficha 360: contacto + mensajes + notas + opps + tickets), `notes` + `notes/done`, `tickets` + `tickets/status`.
+- `index.html`: tabs **Inbox / Pipeline (kanban con montos) / Ficha cliente (timeline unificado + notas) / Tickets (SLA)** + botón **Reabrir** en Finalizadas.
+- `demo.html` (GitHub Pages): suma tab **Pipeline** con kanban simulado.
+
+**Repo:** `github.com/pmachadojulio/protocrm-whatsapp` (público) + demo viva en `.../demo.html`.

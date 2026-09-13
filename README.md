@@ -79,6 +79,14 @@ Duplicado Ucontact\
 **No probado / pendiente**
 - Ningún `docker compose up` se ejecutó (Docker Desktop no está en esta PC).
 - No hay app/WABA/número de Meta creados por el usuario ni cuenta OpenRouter.
+
+**Fase A+B (2026-09-13, ver `PROCESO_COMPLETO.md` §11)**
+- Seguridad: PBKDF2 + migración de hashes, auth en todos los endpoints, sesiones
+  persistentes, firma Meta (`WA_APP_SECRET`), `WA_SEND_KEY` en mock, paginación,
+  sanitización, `backup.py`. Tests: `python3 test_fase_a.py` (38/38).
+- CRM: pipeline/kanban (`opportunities`), ficha 360 (`timeline`), notas/tareas,
+  tickets con SLA. UI: tabs Inbox/Pipeline/Ficha/Tickets + Reabrir en `index.html`;
+  `demo.html` suma Pipeline (demo online en GitHub Pages).
 - El esquema local no se probó contra Postgres 16 real.
 - La rama IA (inbound + sugerencias) no se probó end-to-end contra OpenRouter real.
 - Appsmith no configurado (hay recipe, no app armada).
