@@ -82,6 +82,10 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE TABLE IF NOT EXISTS bot_rules (
   id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, keywords TEXT, response TEXT, priority INTEGER DEFAULT 100, active INTEGER DEFAULT 1
 );
+CREATE TABLE IF NOT EXISTS intents (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL, keywords TEXT NOT NULL,
+  kind TEXT DEFAULT 'auto', label TEXT DEFAULT '', priority INTEGER DEFAULT 100, active INTEGER DEFAULT 1
+);
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, pass_hash TEXT NOT NULL, display_name TEXT, role TEXT DEFAULT 'agent', created_at TEXT
 );
@@ -120,6 +124,17 @@ SEED_USERS = [
     ("asesor1", "1234", "Asesor 1", "agent"),
     ("asesor2", "1234", "Asesor 2", "agent"),
 ]
+# Router conversacional: auto = lo resuelve el bot; human = deriva (nunca se ofrece de entrada)
+SEED_INTENTS = [
+    ("saludo", "hola,buenas,buen dia,buenos dias,hello,hey", "auto", "Saludar", 5),
+    ("horarios", "horario,abren,abierto,cierre,dias,feriado,turno,turnos,direccion,donde quedan,cuando abren", "auto", "Horarios", 10),
+    ("precios", "precio,presupuesto,cotizacion,cuanto,campera,cholo,costo,vale,oferta,descuento", "auto", "Precios", 20),
+    ("factura", "factura,facturacion,comprobante,recibo,pago", "auto", "Factura", 30),
+    ("cambios", "cambio,devolucion,defecto,falla,garantia,roto,anda mal", "auto", "Cambios", 40),
+    ("reclamo", "reclamo,estafa,denuncia,abogado,defensa del consumidor,libro de quejas,formal", "human", "", 50),
+    ("humano", "humano,persona real,asesor,agente,operador,representante,encargado,hablar con alguien,quiero hablar,alguien que,persona", "human", "", 60),
+]
+MAX_CLARIFY = 2
 def hash_pw(p):
     """PBKDF2-HMAC-SHA256 con salt aleatoria. Formato: pbkdf2$iter$salt_hex$hash_hex"""
     salt = secrets.token_hex(16)
@@ -215,6 +230,13 @@ def migrate_add_column():
     except:
         con.execute("ALTER TABLE messages ADD COLUMN created_by TEXT")
         con.commit()
+    for col in ("ALTER TABLE conversations ADD COLUMN greeted INTEGER DEFAULT 0",
+                "ALTER TABLE conversations ADD COLUMN clarify_count INTEGER DEFAULT 0"):
+        try:
+            con.execute(col)
+            con.commit()
+        except:
+            pass
     con.close()
 
 def init_db():
@@ -232,6 +254,14 @@ def init_db():
     cur = con.execute("SELECT COUNT(*) as c FROM bot_rules")
     if cur.fetchone()["c"] == 0:
         con.executemany("INSERT INTO bot_rules (name,keywords,response,priority) VALUES (?,?,?,?)", SEED_RULES)
+        con.commit()
+    cur = con.execute("SELECT COUNT(*) as c FROM intents")
+    if cur.fetchone()["c"] == 0:
+        con.executemany("INSERT INTO intents (name,keywords,kind,label,priority) VALUES (?,?,?,?,?)", SEED_INTENTS)
+        con.commit()
+        print("[seed] intents del router conversacional")
+    cur = con.execute("SELECT COUNT(*) as c FROM contacts WHERE phone='5491130001111'")
+    if cur.fetchone()["c"] == 0:
         # demo contact + conversation
         cid = str(uuid.uuid4()); coid = str(uuid.uuid4()); mid1 = str(uuid.uuid4()); mid2 = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
@@ -285,23 +315,74 @@ def contexto_empresa_txt():
     e = EMPRESA_CTX
     return f"Empresa: {e.get('nombre','')} | Rubro: {e.get('rubro','')} | Horarios: {e.get('horarios','')} | Turnos: {e.get('turnos','')} | Dirección: {e.get('direccion','')} | Tel: {e.get('telefono','')} | Extras: {e.get('extras','')}"
 
-def decide_reply(text, conv_id=None):
+HUMAN_RE = re.compile(r"humano|persona real|asesor|agente|operador|representante|encargad[oa]|"
+                      r"hablar con alguien|quiero hablar|alguien que|defensa del consumidor|"
+                      r"libro de quejas|abogad|estafa|denuncia|reclamo formal", re.I)
+SLA_HOURS = {"critica": 2, "alta": 8, "normal": 24, "baja": 72}
+
+def insert_ticket(conv_id, contact_id, subject, priority="normal"):
+    from datetime import timedelta
+    prio = priority if priority in SLA_HOURS else "normal"
+    now = now_iso()
+    sla_due = (datetime.now(timezone.utc) + timedelta(hours=SLA_HOURS[prio])).isoformat()
+    con = get_db()
+    tid = str(uuid.uuid4())
+    con.execute("INSERT INTO tickets (id,conversation_id,contact_id,subject,priority,status,sla_due,created_at) VALUES (?,?,?,?,?,?,?,?)",
+                (tid, conv_id, contact_id, (subject or "Sin asunto")[:200], prio, "abierto", sla_due, now))
+    con.commit(); con.close()
+    return tid
+
+def match_intent(text, kind=None):
+    t = (text or "").lower()
+    con = get_db()
+    q = "SELECT name, keywords, kind, label FROM intents WHERE active=1"
+    args = []
+    if kind:
+        q += " AND kind=?"
+        args.append(kind)
+    q += " ORDER BY priority, id"
+    rows = list(con.execute(q, args).fetchall())
+    con.close()
+    for r in rows:
+        kws = [k.strip().lower() for k in (r["keywords"] or "").split(",") if k.strip()]
+        if any(k in t for k in kws):
+            return dict(r)
+    return None
+
+def suggestion_labels(k=3):
+    con = get_db()
+    rows = con.execute("SELECT label FROM intents WHERE active=1 AND kind='auto' AND label<>'' ORDER BY priority, id LIMIT ?", (k,)).fetchall()
+    con.close()
+    return [r["label"] for r in rows]
+
+def greeting_text():
+    return f"¡Hola! Soy el asistente de {EMPRESA_CTX.get('nombre','la empresa')} 😊 ¿En qué te puedo ayudar hoy?"
+
+def clarify_text():
+    labels = suggestion_labels()
+    hint = f" Puedo ayudarte con: {', '.join(labels)}." if labels else ""
+    return ("Quiero darte la respuesta justa — ¿me contás un poco más con tus "
+            f"palabras?{hint}")
+
+def answer_with_conf(text, conv_id=None):
+    """(respuesta, confianza, intent): reglas .95 -> empresa .8 -> LLM .65 -> fallback .2"""
     t = (text or "").lower()
     # 1) reglas SQL
     con = get_db()
-    rows = list(con.execute("SELECT keywords,response FROM bot_rules WHERE active=1 ORDER BY priority, id").fetchall())
+    rows = list(con.execute("SELECT name,keywords,response FROM bot_rules WHERE active=1 ORDER BY priority, id").fetchall())
     con.close()
     for r in rows:
         kws = [k.strip().lower() for k in r["keywords"].split(",") if k.strip()]
         if any(k in t for k in kws):
-            return r["response"]
+            return r["response"], 0.95, r["name"]
     # 2) si hay contexto de empresa, usarlo para horarios/turnos antes de fallback genérico
     if any(k in t for k in ["horario","turno","cuando abren","direccion","donde quedan"]):
         return f"{EMPRESA_CTX.get('horarios','')} {EMPRESA_CTX.get('turnos','')}".strip()
     # 3) intento LLM via OpenRouter si hay key (mismo comportamiento que n8n)
-    api_key = os.environ.get("OPENROUTER_API_KEY") or ""
-    # también buscar en .env
-    if not api_key:
+    # os.environ manda (tests pueden forzar "" para modo offline); si no existe, se lee .env
+    api_key = os.environ.get("OPENROUTER_API_KEY")
+    if api_key is None:
+        api_key = ""
         try:
             with open(os.path.join(os.path.dirname(__file__), ".env"), encoding="utf-8") as f:
                 for line in f:
@@ -331,9 +412,34 @@ def decide_reply(text, conv_id=None):
         except Exception as e:
             print(f"[openrouter] fallo, usando fallback: {e}")
     # 4) fallback genérico
-    if re.match(r"^(hola|buenas|buen dia|buenos dias|hello|hey|wacho|falopin|sos un bot)", t):
-        return "Hola, gracias por escribirnos. Un asesor te respondera a la brevedad."
-    return "Hola, gracias por escribirnos. Un asesor te respondera a la brevedad."
+    return "Hola, gracias por escribirnos. Un asesor te respondera a la brevedad.", 0.2, "fallback"
+
+def decide_reply(text, conv_id=None):
+    """Compat: solo texto (el router completo es route_message)."""
+    return answer_with_conf(text, conv_id)[0]
+
+def route_message(text, conv_id):
+    """Router conversacional: human (intención o frustración) | clarify | resolve."""
+    suggestions = suggestion_labels()
+    human_it = match_intent(text, kind="human")
+    if human_it or HUMAN_RE.search(text or ""):
+        return {"action": "human", "intent": human_it["name"] if human_it else "humano",
+                "confidence": 0.95,
+                "reply": "Te derivo con un asesor humano a la brevedad, gracias por tu paciencia.",
+                "suggestions": []}
+    reply, conf, iname = answer_with_conf(text, conv_id)
+    if conf >= 0.6:
+        return {"action": "resolve", "intent": iname, "confidence": conf,
+                "reply": reply, "suggestions": suggestions}
+    con = get_db()
+    row = con.execute("SELECT COALESCE(clarify_count,0) as n FROM conversations WHERE id=?", (conv_id,)).fetchone()
+    con.close()
+    if (row["n"] if row else 0) >= MAX_CLARIFY:
+        return {"action": "human", "intent": "frustracion", "confidence": 0.5,
+                "reply": "Te derivo con un asesor humano para resolverlo bien, gracias por tu paciencia.",
+                "suggestions": []}
+    return {"action": "clarify", "intent": iname, "confidence": conf,
+            "reply": clarify_text(), "suggestions": suggestions}
 
 def upsert_contact(phone, name):
     con = get_db()
@@ -792,11 +898,39 @@ class Handler(BaseHTTPRequestHandler):
                 con = get_db(); con.execute("UPDATE conversations SET last_message_at=?, updated_at=? WHERE id=?", (now_iso(), now_iso(), coid)); con.commit(); con.close()
                 self._json({"ok": True, "reply": None, "handoff": True})
                 return
-            reply = decide_reply(text, coid)
+            route = route_message(text, coid)
+            # saludo abierto una sola vez por conversación
+            firsts = []
+            con = get_db()
+            g = con.execute("SELECT COALESCE(greeted,0) as g FROM conversations WHERE id=?", (coid,)).fetchone()
+            if g and not g["g"]:
+                gm = greeting_text()
+                con.execute("UPDATE conversations SET greeted=1 WHERE id=?", (coid,))
+                con.commit()
+                con.close()
+                insert_message(coid, "out", gm)
+                firsts.append(gm)
+            else:
+                con.close()
+            if route["action"] == "human":
+                set_handoff(coid, to_bot=False)
+                insert_ticket(coid, cid, f"Derivación auto ({route['intent']}): {(text or '')[:120]}", "alta")
+                insert_message(coid, "out", route["reply"])
+                self._json({"ok": True, "reply": "\n".join(firsts + [route["reply"]]),
+                            "handoff": True, "auto": True, "action": "human",
+                            "intent": route["intent"], "suggestions": []})
+                return
             # actualizar y marcar que respondió el bot
-            con = get_db(); con.execute("UPDATE conversations SET last_message_at=?, bot_handled=1, updated_at=?, status='bot' WHERE id=?", (now_iso(), now_iso(), coid)); con.commit(); con.close()
-            insert_message(coid, "out", reply)
-            self._json({"ok": True, "reply": reply})
+            con = get_db()
+            if route["action"] == "clarify":
+                con.execute("UPDATE conversations SET clarify_count=COALESCE(clarify_count,0)+1, last_message_at=?, bot_handled=1, updated_at=?, status='bot' WHERE id=?", (now_iso(), now_iso(), coid))
+            else:
+                con.execute("UPDATE conversations SET clarify_count=0, last_message_at=?, bot_handled=1, updated_at=?, status='bot' WHERE id=?", (now_iso(), now_iso(), coid))
+            con.commit(); con.close()
+            insert_message(coid, "out", route["reply"])
+            self._json({"ok": True, "reply": "\n".join(firsts + [route["reply"]]),
+                        "action": route["action"], "intent": route["intent"],
+                        "confidence": route["confidence"], "suggestions": route["suggestions"]})
         elif path in ("/webhook/wa-send", "/webhook/wa-send/"):
             # validar login si hay usuarios (multi-usuario)
             actor = get_user_from_req(self)

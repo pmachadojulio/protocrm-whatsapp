@@ -13,6 +13,8 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BASE)
 import tester_mock as m
 
+os.environ["OPENROUTER_API_KEY"] = ""  # modo offline determinístico (sin LLM real)
+
 PORT = 5679
 PASS = 0
 FAIL = 0
@@ -165,6 +167,35 @@ def main():
     code, txt = req("GET", "/webhook/timeline?phone=5491100000001", token=tok)
     d = json.loads(txt)
     check("timeline 360", code == 200 and d.get("contact") and "opportunities" in d and "tickets" in d and "notes" in d)
+
+    print("== router conversacional (mock) ==")
+    def signed_inbound(payload):
+        raw = json.dumps(payload).encode()
+        sig = "sha256=" + hmac.new(b"test-app-secret", raw, hashlib.sha256).hexdigest()
+        url = f"http://127.0.0.1:{PORT}/webhook/wa-inbound"
+        r = urllib.request.Request(url, data=raw, method="POST",
+                                   headers={"Content-Type": "application/json",
+                                            "X-Hub-Signature-256": sig})
+        try:
+            with urllib.request.urlopen(r, timeout=5) as resp:
+                return resp.status, resp.read().decode()
+        except urllib.error.HTTPError as e:
+            return e.code, e.read().decode()
+    code, txt = signed_inbound({"from": "5491100000091", "text": "hola"})
+    d = json.loads(txt)
+    check("saludo + sugerencias", code == 200
+          and "¿En qué te puedo ayudar" in d.get("reply", "")
+          and len(d.get("suggestions", [])) >= 2)
+    vague = {"from": "5491100000092", "text": "eeeh no se, una cosa"}
+    code, txt = signed_inbound(vague)
+    check("clarify conversacional", json.loads(txt).get("action") == "clarify")
+    code, txt = signed_inbound(vague)
+    check("clarify 2", json.loads(txt).get("action") == "clarify")
+    code, txt = signed_inbound(vague)
+    d = json.loads(txt)
+    check("frustración -> humano", d.get("action") == "human" and d.get("handoff") is True)
+    code, txt = signed_inbound({"from": "5491100000093", "text": "me pasas con un asesor?"})
+    check("pide humano -> deriva", json.loads(txt).get("action") == "human")
 
     print("== logout ==")
     code, _ = req("POST", "/webhook/auth-logout", {}, token=tok)

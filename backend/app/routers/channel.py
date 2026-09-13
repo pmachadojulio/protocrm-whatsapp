@@ -4,9 +4,9 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from sqlalchemy.orm import Session as SASession
 
 from ..config import WA_APP_SECRET, WA_SEND_KEY, WA_VERIFY_TOKEN
-from ..core import (decide_reply, display_name, handoff_activo, insert_message,
-                    now_iso, open_ticket, set_handoff, upsert_contact,
-                    upsert_conversation, wants_human)
+from ..core import (display_name, greeting_text, handoff_activo, insert_message,
+                    now_iso, open_ticket, route_message, set_handoff,
+                    upsert_contact, upsert_conversation)
 from ..deps import clean_name, clean_phone, clean_text, get_current_user, get_db
 from ..models import Contact, User
 from ..security import verify_meta_signature
@@ -69,25 +69,51 @@ async def inbound(request: Request, db: SASession = Depends(get_db)):
     if handoff_activo(db, conv.id):
         return {"ok": True, "reply": None, "handoff": True}
 
-    # Fase D: pide humano / reclamo fuerte -> handoff automático + ticket
-    if wants_human(text):
-        set_handoff(db, conv.id, to_bot=False)
-        open_ticket(db, contact.id, conv.id,
-                    f"Derivación automática: {(text or '')[:80]}", "alta")
-        reply = ("Te derivo con un asesor humano a la brevedad, gracias por tu paciencia.")
-        insert_message(db, conv.id, "out", reply)
-        conv.last_message_at = now_iso()
+    # Router conversacional: saludo abierto una vez, intención por confianza,
+    # aclaración conversacional (máx 2) o derivación tibia al humano.
+    route = route_message(db, text, conv)
+    firsts = []
+    if not conv.greeted:
+        g = greeting_text(db)
+        insert_message(db, conv.id, "out", g)
+        firsts.append(g)
+        conv.greeted = 1
         db.commit()
-        return {"ok": True, "reply": reply, "handoff": True, "auto": True}
 
-    reply = decide_reply(db, text, conv.id)
-    conv.last_message_at = now_iso()
-    conv.bot_handled = 1
-    conv.updated_at = now_iso()
-    conv.status = "bot"
-    db.commit()
-    insert_message(db, conv.id, "out", reply)
-    return {"ok": True, "reply": reply}
+    def _touch(status=None, bot=1):
+        conv.last_message_at = now_iso()
+        conv.updated_at = now_iso()
+        conv.bot_handled = bot
+        if status:
+            conv.status = status
+        db.commit()
+
+    if route["action"] == "human":
+        set_handoff(db, conv.id, to_bot=False)
+        summary = f"Derivación auto ({route['intent']}): {(text or '')[:120]}"
+        open_ticket(db, contact.id, conv.id, summary, "alta")
+        insert_message(db, conv.id, "out", route["reply"])
+        _touch()
+        return {"ok": True, "reply": "\n".join(firsts + [route["reply"]]),
+                "handoff": True, "auto": True, "action": "human",
+                "intent": route["intent"], "suggestions": []}
+
+    if route["action"] == "clarify":
+        conv.clarify_count = (conv.clarify_count or 0) + 1
+        _touch(status="bot", bot=1)
+        insert_message(db, conv.id, "out", route["reply"])
+        return {"ok": True, "reply": "\n".join(firsts + [route["reply"]]),
+                "action": "clarify", "intent": route["intent"],
+                "confidence": route["confidence"],
+                "suggestions": route["suggestions"]}
+
+    conv.clarify_count = 0  # se resolvió: reset de frustración
+    _touch(status="bot", bot=1)
+    insert_message(db, conv.id, "out", route["reply"])
+    return {"ok": True, "reply": "\n".join(firsts + [route["reply"]]),
+            "action": "resolve", "intent": route["intent"],
+            "confidence": route["confidence"],
+            "suggestions": route["suggestions"]}
 
 
 @router.post("/webhook/wa-send")

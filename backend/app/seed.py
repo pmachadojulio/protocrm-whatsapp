@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session as SASession
 
 from .config import EMPRESA_CTX
-from .models import BotRule, Contact, Conversation, Message, User
+from .models import BotRule, Contact, Conversation, Intent, Message, User
 from .security import hash_pw
 
 SEED_RULES = [
@@ -20,6 +20,17 @@ SEED_USERS = [
     ("matias", "matias123", "Matias", "admin"),
     ("asesor1", "1234", "Asesor 1", "agent"),
     ("asesor2", "1234", "Asesor 2", "agent"),
+]
+# Router conversacional: kind auto = lo resuelve el bot; human = deriva.
+# El humano NUNCA se ofrece de entrada: solo se deriva por intención o frustración.
+SEED_INTENTS = [
+    ("saludo", "hola,buenas,buen dia,buenos dias,hello,hey", "auto", "Saludar", 5),
+    ("horarios", "horario,abren,abierto,cierre,dias,feriado,turno,turnos,direccion,donde quedan,cuando abren", "auto", "Horarios", 10),
+    ("precios", "precio,presupuesto,cotizacion,cuanto,campera,cholo,costo,vale,oferta,descuento", "auto", "Precios", 20),
+    ("factura", "factura,facturacion,comprobante,recibo,pago", "auto", "Factura", 30),
+    ("cambios", "cambio,devolucion,defecto,falla,garantia,roto,anda mal", "auto", "Cambios", 40),
+    ("reclamo", "reclamo,estafa,denuncia,abogado,defensa del consumidor,libro de quejas,formal", "human", "", 50),
+    ("humano", "humano,persona real,asesor,agente,operador,representante,encargado,hablar con alguien,quiero hablar,alguien que,persona", "human", "", 60),
 ]
 
 
@@ -37,6 +48,14 @@ def run_seed(db: SASession):
     if db.query(BotRule).count() == 0:
         for name, kw, resp, prio in SEED_RULES:
             db.add(BotRule(name=name, keywords=kw, response=resp, priority=prio, active=True))
+        db.commit()
+    if db.query(Intent).count() == 0:
+        for name, kw, kind, label, prio in SEED_INTENTS:
+            db.add(Intent(name=name, keywords=kw, kind=kind, label=label,
+                          priority=prio, active=True))
+        db.commit()
+        print("[seed] intents del router conversacional")
+    if db.query(Contact).filter(Contact.phone == "5491130001111").count() == 0:
         now = now_iso()
         cid, coid = str(uuid.uuid4()), str(uuid.uuid4())
         db.add(Contact(id=cid, phone="5491130001111", name="Cliente Demo",

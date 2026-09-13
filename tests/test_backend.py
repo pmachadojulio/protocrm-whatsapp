@@ -159,6 +159,32 @@ def main():
         check("resumen extractivo", r.status_code == 200 and d.get("mode") == "extractivo"
               and len(d.get("summary", "")) > 10)
 
+        # Router conversacional: saludo abierto, clarify, frustración, humano
+        r = inbound({"from": "5491100000010", "name": "Nuevo", "text": "hola"})
+        d = r.json()
+        check("saludo en 1er mensaje", r.status_code == 200
+              and "¿En qué te puedo ayudar" in d.get("reply", "")
+              and len(d.get("suggestions", [])) >= 2)
+        r = inbound({"from": "5491100000011", "name": "Precio",
+                     "text": "cuanto sale la campera?"})
+        d = r.json()
+        check("resolve con confianza", d.get("action") == "resolve"
+              and d.get("confidence", 0) >= 0.6)
+        vague = {"from": "5491100000012", "name": "Vago", "text": "eeeh no se, una cosa"}
+        r = inbound(vague)
+        check("clarify 1 (conversacional, no menú)", r.json().get("action") == "clarify"
+              and "contás" in r.json().get("reply", ""))
+        r = inbound(vague)
+        check("clarify 2", r.json().get("action") == "clarify")
+        r = inbound(vague)
+        d = r.json()
+        check("frustración -> humano con ticket", d.get("action") == "human"
+              and d.get("handoff") is True)
+        r = inbound({"from": "5491100000013", "text": "hola, me pasas con un asesor?"})
+        d = r.json()
+        check("pide humano -> deriva sin ofrecerlo antes", d.get("action") == "human"
+              and d.get("intent") == "humano")
+
         # logout invalida
         c.post("/webhook/auth-logout", headers=H)
         r = c.get("/webhook/wa-inbox", headers=H)

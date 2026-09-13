@@ -45,6 +45,8 @@ class Conversation(Base):
     status = Column(String, default="open")
     assignee_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"))
     bot_handled = Column(Integer, default=1)
+    greeted = Column(Integer, default=0)       # saludo abierto ya enviado
+    clarify_count = Column(Integer, default=0)  # aclaraciones pedidas (máx 2)
     last_message_at = Column(String)
     created_at = Column(String)
     updated_at = Column(String)
@@ -70,6 +72,19 @@ class BotRule(Base):
     name = Column(String, nullable=False)
     keywords = Column(Text, nullable=False)
     response = Column(Text, nullable=False)
+    priority = Column(Integer, default=100)
+    active = Column(Boolean, default=True)
+
+
+class Intent(Base):
+    """Router conversacional: qué intención, si la resuelve el bot o un humano,
+    y con qué etiqueta aparece en las sugerencias (chips, no menú 1-2-3)."""
+    __tablename__ = "intents"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, unique=True, nullable=False)
+    keywords = Column(Text, nullable=False)
+    kind = Column(String, default="auto")  # auto | human
+    label = Column(String, default="")     # etiqueta corta para sugerencias
     priority = Column(Integer, default=100)
     active = Column(Boolean, default=True)
 

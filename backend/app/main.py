@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import rag
 from .config import WA_APP_SECRET, WA_SEND_KEY, WA_VERIFY_TOKEN
-from .db import SessionLocal, init_db
+from .db import SessionLocal, init_db, migrate
 from .routers import auth, channel, contacts, crm, inbox, insights
 from .seed import run_seed
 
@@ -33,6 +33,7 @@ def health():
 @app.on_event("startup")
 def startup():
     init_db()
+    migrate()
     db = SessionLocal()
     try:
         run_seed(db)

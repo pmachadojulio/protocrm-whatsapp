@@ -172,30 +172,114 @@ def _llm_reply(text: str, conv_id: str, db: SASession) -> str | None:
 
 
 def decide_reply(db: SASession, text: str, conv_id: str | None = None) -> str:
-    """Capas: reglas SQL -> contexto empresa -> RAG extractivo -> LLM -> fallback."""
+    """Compat: solo texto de respuesta. El router completo es route_message()."""
+    from .models import Conversation
+    conv = db.query(Conversation).filter(Conversation.id == conv_id).first() \
+        if conv_id else None
+    return route_message(db, text, conv)["reply"]
+
+
+def wants_human(text: str) -> bool:
+    return bool(HUMAN_RE.search(text or ""))
+
+
+# ---------- Router conversacional (natural, sin menú 1-2-3) ----------
+# Saludo abierto -> intención por confianza -> 1-2 aclaraciones conversacionales
+# -> derivación tibia al humano (nunca se ofrece humano de entrada).
+MAX_CLARIFY = 2
+
+
+def match_intent(db: SASession, text: str, kind: str | None = None):
+    """Intent activo de mayor prioridad cuyo keyword matchee (opcional filtro kind)."""
+    from .models import Intent
+    t = (text or "").lower()
+    q = db.query(Intent).filter(Intent.active.is_(True))
+    if kind:
+        q = q.filter(Intent.kind == kind)
+    for it in q.order_by(Intent.priority, Intent.id).all():
+        kws = [k.strip().lower() for k in (it.keywords or "").split(",") if k.strip()]
+        if any(k in t for k in kws):
+            return it
+    return None
+
+
+def suggestion_labels(db: SASession, k: int = 3) -> list:
+    """Etiquetas de intents auto para chips de sugerencia (guía sin menú)."""
+    from .models import Intent
+    intents = db.query(Intent).filter(Intent.active.is_(True), Intent.kind == "auto")\
+        .order_by(Intent.priority, Intent.id).all()
+    return [it.label for it in intents if it.label][:k]
+
+
+def greeting_text(db: SASession) -> str:
+    nombre = EMPRESA_CTX.get("nombre", "la empresa")
+    return (f"¡Hola! Soy el asistente de {nombre} 😊 ¿En qué te puedo ayudar hoy?")
+
+
+def clarify_text(db: SASession) -> str:
+    labels = suggestion_labels(db)
+    hint = f" Puedo ayudarte con: {', '.join(labels)}." if labels else ""
+    return ("Quiero darte la respuesta justa — ¿me contás un poco más con tus "
+            f"palabras?{hint}")
+
+
+def answer(db: SASession, text: str, conv_id: str | None = None):
+    """Devuelve (respuesta, confianza, intent_name). Capas:
+    reglas SQL (0.95) -> contexto empresa (0.8) -> RAG extractivo (0.7)
+    -> LLM (0.65) -> fallback (0.2)."""
     t = (text or "").lower()
     rules = db.query(BotRule).filter(BotRule.active.is_(True))\
         .order_by(BotRule.priority, BotRule.id).all()
     for r in rules:
         kws = [k.strip().lower() for k in (r.keywords or "").split(",") if k.strip()]
         if any(k in t for k in kws):
-            return r.response
+            return r.response, 0.95, r.name
     if any(k in t for k in ["horario", "turno", "cuando abren", "direccion", "donde quedan"]):
-        return f"{EMPRESA_CTX.get('horarios','')} {EMPRESA_CTX.get('turnos','')}".strip()
+        return f"{EMPRESA_CTX.get('horarios','')} {EMPRESA_CTX.get('turnos','')}".strip(), 0.8, "empresa_ctx"
     kb_hit = rag.extractive_answer(text)
     if kb_hit:
-        return kb_hit
+        return kb_hit, 0.7, "kb"
     if conv_id:
         llm = _llm_reply(text, conv_id, db)
         if llm:
-            return llm
-    if GREETING_RE.match(t):
-        return FALLBACK
-    return FALLBACK
+            return llm, 0.65, "llm"
+    return FALLBACK, 0.2, "fallback"
 
 
-def wants_human(text: str) -> bool:
-    return bool(HUMAN_RE.search(text or ""))
+def route_message(db: SASession, text: str, conv):
+    """Router conversacional. Devuelve dict con:
+    action (resolve|clarify|human), intent, confidence, reply, suggestions.
+    - human: intención humana/reclamo o frustración (2 aclaraciones fallidas).
+    - clarify: confianza baja y aún quedan intentos (máx MAX_CLARIFY).
+    - resolve: el bot responde directo.
+    El humano nunca se ofrece de entrada: solo se deriva."""
+    t = (text or "").lower()
+    suggestions = suggestion_labels(db)
+
+    # lo humano primero: si hay intención humana o pedido explícito, se deriva
+    human_it = match_intent(db, text, kind="human")
+    if human_it or wants_human(text):
+        name = human_it.name if human_it else "humano"
+        return {"action": "human", "intent": name, "confidence": 0.95,
+                "reply": ("Te derivo con un asesor humano a la brevedad, "
+                          "gracias por tu paciencia."),
+                "suggestions": []}
+
+    it = match_intent(db, text)
+
+    reply, conf, iname = answer(db, text, conv.id if conv else None)
+    if conf >= 0.6:
+        return {"action": "resolve", "intent": iname, "confidence": conf,
+                "reply": reply, "suggestions": suggestions}
+
+    n_clarify = (conv.clarify_count or 0) if conv else 0
+    if n_clarify >= MAX_CLARIFY:
+        return {"action": "human", "intent": "frustracion", "confidence": 0.5,
+                "reply": ("Te derivo con un asesor humano para resolverlo bien, "
+                          "gracias por tu paciencia."),
+                "suggestions": []}
+    return {"action": "clarify", "intent": iname, "confidence": conf,
+            "reply": clarify_text(db), "suggestions": suggestions}
 
 
 def ticket_breached(status: str | None, sla_due: str | None) -> bool:

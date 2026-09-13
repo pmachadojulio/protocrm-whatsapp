@@ -266,3 +266,35 @@ Estado del mock al entregar: `mock.db` borrado para demo fresca (seed: 1 contact
 - **Handoff inteligente**: pedir humano / reclamo fuerte → deriva + **ticket automático** (prioridad alta) + respuesta de contención.
 - **Resúmenes**: `conversations/summarize` (IA con key, extractivo sin key) + botón **Resumir** en el historial.
 - Nuevas vars `.env.example`: `DATABASE_URL`, `JWT_SECRET`. `kb/` commiteado (conocimiento de ejemplo).
+
+---
+
+## 13. Router conversacional — "¿en qué podemos ayudarlo?" (2026-09-13)
+
+Decisión de producto: saludo abierto + resolución directa de lo simple + derivación
+solo cuando hace falta. El humano **nunca se ofrece de entrada** (si se ofrece,
+todo el mundo lo elige aunque el bot podría resolver). Sin menú 1-2-3: la guía
+son **chips de sugerencia** (Horarios, Precios, Factura), no opciones numeradas.
+
+Flujo (`route_message`, igual en `backend/app/core.py` y `tester_mock.py`):
+1. **Saludo una vez** por conversación: "¡Hola! Soy el asistente de {empresa} 😊
+   ¿En qué te puedo ayudar hoy?" + sugerencias (chips en WhatsApp).
+2. **Intención humana primero** (tabla `intents` kind=human + regex backstop:
+   reclamo, estafa, "hablame con un asesor", etc.) → derivación + **ticket
+   automático** (prioridad alta) + respuesta de contención.
+3. **Respuesta directa** por confianza: reglas SQL (0.95) → contexto empresa (0.8)
+   → RAG extractivo (0.7) → LLM (0.65).
+4. **Aclaración conversacional** si confianza < 0.6 (máx 2): "Quiero darte la
+   respuesta justa — ¿me contás un poco más con tus palabras?..." (una pregunta,
+   no un menú).
+5. **Frustración** (2 aclaraciones fallidas) → derivación tibia con resumen para
+   el humano (ticket con la intención detectada).
+
+Respuesta del webhook extendida (compatible): `{ok, reply, action, intent,
+confidence, suggestions, handoff?, auto?}`. `index.html` usa `reply` como antes.
+
+infra: tabla `intents` (seed 7: saludo/horarios/precios/factura/cambios auto;
+reclamo/humano human) + columnas `conversations.greeted/clarify_count`
+(migración automática en mock y backend). `demo.html` replica el flujo con chips
+clickeables. Tests: mock 43/43, backend 32/32 (saludo, clarify×2, frustración,
+pedido de humano).

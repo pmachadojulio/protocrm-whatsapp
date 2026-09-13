@@ -94,6 +94,12 @@ Duplicado Ucontact\
   default / Postgres vía `DATABASE_URL`, `import_mock.py`, tests 26/26.
 - IA: RAG $0 (`kb/*.md`, sin dependencias) en el bot, handoff automático con
   ticket, resúmenes; Dashboard con métricas en la UI.
+
+**Router conversacional (2026-09-13, ver `PROCESO_COMPLETO.md` §13)**
+- El bot saluda ("¿en qué te puedo ayudar?") una vez, resuelve lo simple directo,
+  pide 1 aclaración conversacional si no entiende (máx. 2) y deriva al humano con
+  ticket solo cuando hace falta. Sin menú 1-2-3 (chips de sugerencia), sin
+  ofrecer humano de entrada. Tests: mock 43/43, backend 32/32.
 - El esquema local no se probó contra Postgres 16 real.
 - La rama IA (inbound + sugerencias) no se probó end-to-end contra OpenRouter real.
 - Appsmith no configurado (hay recipe, no app armada).

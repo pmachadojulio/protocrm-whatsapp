@@ -154,7 +154,7 @@
     <input id="simText" style="flex:1" placeholder="Hola, ¿qué horarios tienen?">
     <button id="btnSim">Simular mensaje</button>
   </div>
-  <div class="sub">El bot responde solo según sus reglas (probá con "precio", "factura" u "horario").</div>
+  <div class="sub">El bot saluda una vez, resuelve lo simple, pide <b>una</b> aclaración conversacional si no entiende (máx. 2) y deriva al humano con ticket si hace falta. Sin menú 1-2-3.</div>
 </div>
 
 <div class="grid">
@@ -247,14 +247,19 @@
     for (var i = 0; i < BOT_RULES.length; i++) {
       var r = BOT_RULES[i];
       for (var k = 0; k < r.keywords.length; k++) {
-        if (t.indexOf(r.keywords[k]) >= 0) return r.response;
+        if (t.indexOf(r.keywords[k]) >= 0) return { reply: r.response, conf: 0.95 };
       }
     }
     var ctx = ['horario','turno','cuando abren','direccion','donde quedan'];
     for (var j = 0; j < ctx.length; j++) {
-      if (t.indexOf(ctx[j]) >= 0) return (EMPRESA.horarios + ' ' + EMPRESA.turnos).trim();
+      if (t.indexOf(ctx[j]) >= 0) return { reply: (EMPRESA.horarios + ' ' + EMPRESA.turnos).trim(), conf: 0.8 };
     }
-    return FALLBACK;
+    return { reply: FALLBACK, conf: 0.2 };
+  }
+  var HUMAN_RE = /humano|persona real|asesor|agente|operador|representante|encargad[oa]|hablar con alguien|quiero hablar|alguien que|reclamo|estafa|denuncia|abogad/i;
+  var SUGGESTIONS = ['Horarios', 'Precios', 'Factura'];
+  function greeting() {
+    return '¡Hola! Soy el asistente de Indumentaria El Cholo 😊 ¿En qué te puedo ayudar hoy?';
   }
 
   var uid = 0;
@@ -536,19 +541,59 @@
     log('Mensaje entrante: "' + text.slice(0, 60) + '"');
     renderConvs();
     if (currentConv && currentConv.conversation_id === conv.conversation_id) renderMsgs();
-    // El bot responde solo si está activo en esa conversación
+    // Router conversacional: saludo una vez, resolve/clarify/human (sin menú 1-2-3)
+    if (conv.greeted === undefined) { conv.greeted = false; conv.clarify = 0; }
     if (conv.bot_handled == 1) {
-      var reply = decideReply(text);
-      setTimeout(function () {
-        pushMsg(conv, 'out', reply, 'Bot');
-        log('Bot respondió: "' + reply.slice(0, 60) + '"');
-        renderConvs();
-        if (currentConv && currentConv.conversation_id === conv.conversation_id) { renderMsgs(); renderSuggestions(); }
-      }, 900);
+      var toSend = [], action = 'resolve';
+      if (!conv.greeted) { toSend.push(greeting()); conv.greeted = true; }
+      if (HUMAN_RE.test(text)) {
+        conv.bot_handled = 0;
+        toSend.push('Te derivo con un asesor humano a la brevedad, gracias por tu paciencia.');
+        action = 'human';
+      } else {
+        var r = decideReply(text);
+        if (r.conf >= 0.6) {
+          toSend.push(r.reply); conv.clarify = 0;
+        } else if ((conv.clarify || 0) >= 2) {
+          conv.bot_handled = 0;
+          toSend.push('Te derivo con un asesor humano para resolverlo bien, gracias por tu paciencia.');
+          action = 'human';
+        } else {
+          conv.clarify = (conv.clarify || 0) + 1;
+          toSend.push('Quiero darte la respuesta justa — ¿me contás un poco más con tus palabras? Puedo ayudarte con: ' + SUGGESTIONS.join(', ') + '.');
+          action = 'clarify';
+        }
+      }
+      save();
+      toSend.forEach(function (msg, i) {
+        setTimeout(function () {
+          pushMsg(conv, 'out', msg, 'Bot');
+          log('Bot (' + action + '): "' + msg.slice(0, 60) + '"');
+          renderConvs();
+          if (currentConv && currentConv.conversation_id === conv.conversation_id) {
+            renderMsgs();
+            if (i === toSend.length - 1 && action !== 'human') renderClientChips();
+          }
+        }, 700 * (i + 1));
+      });
     } else {
       log('Bot pausado en esta conversación: esperaba a un humano.');
     }
   };
+
+  function renderClientChips() {
+    var box = $('msgList');
+    var wrap = document.createElement('div');
+    wrap.style.margin = '4px 0 8px 0';
+    SUGGESTIONS.forEach(function (s) {
+      var ch = document.createElement('span');
+      ch.className = 'chip'; ch.textContent = s;
+      ch.title = 'Simular que el cliente elige este tema';
+      ch.onclick = function () { $('simText').value = s; $('simText').focus(); };
+      wrap.appendChild(ch);
+    });
+    box.appendChild(wrap);
+  }
 
   /* ============ Handoff ============ */
   $('btnPausar').onclick = function () {
