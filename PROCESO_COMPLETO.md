@@ -248,3 +248,21 @@ Estado del mock al entregar: `mock.db` borrado para demo fresca (seed: 1 contact
 - `demo.html` (GitHub Pages): suma tab **Pipeline** con kanban simulado.
 
 **Repo:** `github.com/pmachadojulio/protocrm-whatsapp` (público) + demo viva en `.../demo.html`.
+
+---
+
+## 12. Fase C+D — backend propio + IA (2026-09-13)
+
+**Fase C (backend FastAPI, `backend/`) — hecho y testeado (`tests/test_backend.py`: 26/26):**
+- Misma API que el mock (`/webhook/*`): `index.html` anda sin cambios con Base `http://localhost:8000`.
+- Auth **JWT + sesiones revocables** (mismos headers), PBKDF2 con soporte legacy, seed idéntico.
+- SQLAlchemy: SQLite default (`backend/crm.db`), Postgres vía `DATABASE_URL`. `JWT_SECRET` en `.env`.
+- `backend/import_mock.py`: migra `mock.db` → `crm.db` sin pisar (verificado: 21 filas).
+- n8n queda para automatizaciones/campañas, no como núcleo.
+
+**Fase D (métricas + IA) — hecho:**
+- `metrics/overview`: por estado, funnel con montos, SLA, mensajes/día 7d, 1ra respuesta prom., por agente → vista **Dashboard** en `index.html` (barras CSS, sin dependencias; avisa si el backend no la soporta).
+- **RAG $0 sin dependencias** (`backend/app/rag.py` TF-IDF + `kb/*.md` + `empresa_contexto.json`): endpoint `kb/search`, `kb/reindex`; el bot lo usa en 2 capas (extractiva sin key + contexto del prompt con key).
+- **Handoff inteligente**: pedir humano / reclamo fuerte → deriva + **ticket automático** (prioridad alta) + respuesta de contención.
+- **Resúmenes**: `conversations/summarize` (IA con key, extractivo sin key) + botón **Resumir** en el historial.
+- Nuevas vars `.env.example`: `DATABASE_URL`, `JWT_SECRET`. `kb/` commiteado (conocimiento de ejemplo).

@@ -87,6 +87,13 @@ Duplicado Ucontact\
 - CRM: pipeline/kanban (`opportunities`), ficha 360 (`timeline`), notas/tareas,
   tickets con SLA. UI: tabs Inbox/Pipeline/Ficha/Tickets + Reabrir en `index.html`;
   `demo.html` suma Pipeline (demo online en GitHub Pages).
+
+**Fase C+D (2026-09-13, ver `PROCESO_COMPLETO.md` §12)**
+- Backend propio FastAPI (`backend/`, misma API `/webhook/*` → `index.html` sin
+  cambios, Base `http://localhost:8000`): JWT + sesiones revocables, SQLite
+  default / Postgres vía `DATABASE_URL`, `import_mock.py`, tests 26/26.
+- IA: RAG $0 (`kb/*.md`, sin dependencias) en el bot, handoff automático con
+  ticket, resúmenes; Dashboard con métricas en la UI.
 - El esquema local no se probó contra Postgres 16 real.
 - La rama IA (inbound + sugerencias) no se probó end-to-end contra OpenRouter real.
 - Appsmith no configurado (hay recipe, no app armada).

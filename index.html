@@ -79,6 +79,17 @@
   .tl-item .when { color:var(--dim); font-size:11px; }
   .breach { border:1px solid var(--err) !important; }
   .breachTag { background:#450a0a !important; color:var(--err) !important; border:1px solid var(--err) !important; }
+  .mgrid { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:12px; }
+  @media (max-width:900px){ .mgrid { grid-template-columns:repeat(2, 1fr); } }
+  .mcard { background:#0b1424; border:1px solid var(--line); border-radius:8px; padding:10px; }
+  .mcard .big { font-size:20px; font-weight:700; color:var(--accent); }
+  .mcard .lbl { font-size:11px; color:var(--dim); }
+  .hbar { display:flex; align-items:center; gap:8px; margin-bottom:4px; font-size:12px; }
+  .hbar .t { width:90px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .hbar .bar { flex:1; background:#0b1424; border-radius:4px; height:14px; }
+  .hbar .fill { background:var(--accent); border-radius:4px; height:14px; min-width:2px; }
+  .hbar .v { width:70px; text-align:right; }
+  #summaryBox { background:#0b1424; border:1px solid var(--accent); border-radius:8px; padding:8px 10px; margin-bottom:8px; font-size:13px; white-space:pre-wrap; }
 </style>
 </head>
 <body>
@@ -160,6 +171,7 @@
   <button id="vPipe" style="background:#0b1424; color:var(--txt)">Pipeline</button>
   <button id="vTimeline" style="background:#0b1424; color:var(--txt)">Ficha cliente</button>
   <button id="vTickets" style="background:#0b1424; color:var(--txt)">Tickets</button>
+  <button id="vDash" style="background:#0b1424; color:var(--txt)">Dashboard</button>
 </div>
 <div id="viewInbox">
 
@@ -187,8 +199,10 @@
   <div class="card">
     <div class="bar">
       <h2 id="msgsTitle">4. Historial de la conversacion</h2>
-      <span id="convMeta" class="tag"></span>
+      <span><span id="convMeta" class="tag"></span>
+      <button id="btnSummary" style="font-size:11px; padding:2px 8px; margin-left:6px">Resumir</button></span>
     </div>
+    <div id="summaryBox" style="display:none"></div>
     <div id="msgList"><div class="empty">Selecciona una conversacion.</div></div>
     <div id="handoffBox" style="display:none; margin-top:8px">
       <span id="handoffBadge" class="tag"></span>
@@ -213,6 +227,18 @@
   </div>
 </div>
 </div><!-- /viewInbox -->
+
+<div id="viewDash" class="hidden">
+  <div class="card">
+    <div class="bar"><h2>Dashboard</h2><button id="btnDashLoad" style="font-size:12px; padding:4px 10px">Actualizar</button></div>
+    <div id="dashCards" class="mgrid"></div>
+    <div class="grid" style="grid-template-columns:1fr 1fr">
+      <div class="card" style="margin:0"><h2>Mensajes por día (7d)</h2><div id="dashMsgs"></div></div>
+      <div class="card" style="margin:0"><h2>Pipeline por etapa</h2><div id="dashFunnel"></div></div>
+    </div>
+    <div class="card" style="margin-top:12px"><h2>Mensajes por agente</h2><div id="dashAgents"></div></div>
+  </div>
+</div>
 
 <div id="viewPipe" class="hidden">
   <div class="card">
@@ -730,9 +756,9 @@
   /* ============ Fase B: vistas CRM ============ */
   var STAGE_ORDER = ['nuevo','contactado','cotizado','ganado','perdido'];
   var TICK_FLOW = { 'abierto':'en_progreso', 'en_progreso':'resuelto', 'resuelto':'cerrado', 'cerrado':null };
-  var VIEW_BTN = { inbox:'vInbox', pipe:'vPipe', timeline:'vTimeline', tickets:'vTickets' };
+  var VIEW_BTN = { inbox:'vInbox', pipe:'vPipe', timeline:'vTimeline', tickets:'vTickets', dash:'vDash' };
   function switchView(v) {
-    var map = { inbox:'viewInbox', pipe:'viewPipe', timeline:'viewTimeline', tickets:'viewTickets' };
+    var map = { inbox:'viewInbox', pipe:'viewPipe', timeline:'viewTimeline', tickets:'viewTickets', dash:'viewDash' };
     Object.keys(map).forEach(function (k) {
       $(map[k]).classList.toggle('hidden', k !== v);
       var b = $(VIEW_BTN[k]);
@@ -741,11 +767,13 @@
     });
     if (v === 'pipe') loadPipe();
     if (v === 'tickets') loadTickets();
+    if (v === 'dash') loadDash();
   }
   $('vInbox').onclick = function () { switchView('inbox'); };
   $('vPipe').onclick = function () { switchView('pipe'); };
   $('vTimeline').onclick = function () { switchView('timeline'); };
   $('vTickets').onclick = function () { switchView('tickets'); };
+  $('vDash').onclick = function () { switchView('dash'); };
 
   function fmtMoney(n) {
     var v = Number(n || 0);
@@ -916,6 +944,76 @@
       $('msgList').innerHTML = '<div class="empty">Selecciona una conversacion.</div>';
       loadConvos();
     });
+  };
+
+  /* ---- Dashboard (Fase D) ---- */
+  function hbar(box, label, value, max) {
+    var pct = max > 0 ? Math.round(100 * value / max) : 0;
+    var d = document.createElement('div');
+    d.className = 'hbar';
+    d.innerHTML = '<span class="t">' + esc(label) + '</span>' +
+      '<span class="bar"><span class="fill" style="display:block; width:' + pct + '%"></span></span>' +
+      '<span class="v">' + esc(String(value)) + '</span>';
+    box.appendChild(d);
+  }
+  function loadDash() {
+    api('/webhook/metrics/overview').then(function (txt) {
+      var d;
+      try { d = JSON.parse(txt); } catch (e) { log('Error dashboard: ' + txt.slice(0, 120)); return; }
+      if (d.error || !d.conversations_by_status) { log('Dashboard: endpoint no disponible en este backend (usá el FastAPI :8000)'); return; }
+      var convs = d.conversations_by_status, nConv = 0, k;
+      for (k in convs) nConv += convs[k];
+      var cards = [
+        [nConv, 'conversaciones'],
+        [fmtMoney(d.pipeline_open_amount), 'pipeline abierto'],
+        [d.tickets_open, 'tickets abiertos'],
+        [d.tickets_breached, 'SLA vencidos'],
+        [d.avg_first_response_min == null ? '—' : d.avg_first_response_min + ' min', '1ra respuesta prom.'],
+        [(convs['closed'] || 0), 'cerradas']
+      ];
+      var box = $('dashCards');
+      box.innerHTML = '';
+      cards.forEach(function (c) {
+        var div = document.createElement('div');
+        div.className = 'mcard';
+        div.innerHTML = '<div class="big">' + esc(String(c[0])) + '</div><div class="lbl">' + esc(c[1]) + '</div>';
+        box.appendChild(div);
+      });
+      var mb = $('dashMsgs');
+      mb.innerHTML = '';
+      var maxM = 1;
+      d.messages_per_day.forEach(function (x) { maxM = Math.max(maxM, x.in + x.out); });
+      d.messages_per_day.forEach(function (x) {
+        hbar(mb, x.day.slice(5), x.in + x.out, maxM);
+      });
+      var fb = $('dashFunnel');
+      fb.innerHTML = '';
+      var maxF = 1, stages = d.opportunities_by_stage;
+      Object.keys(stages).forEach(function (s) { maxF = Math.max(maxF, stages[s].count); });
+      ['nuevo','contactado','cotizado','ganado','perdido'].forEach(function (s) {
+        if (stages[s]) hbar(fb, s + ' (' + fmtMoney(stages[s].amount) + ')', stages[s].count, maxF);
+      });
+      var ab = $('dashAgents');
+      ab.innerHTML = '';
+      var maxA = 1;
+      d.agent_messages.forEach(function (a) { maxA = Math.max(maxA, a.count); });
+      if (!d.agent_messages.length) ab.innerHTML = '<div class="empty">Sin datos.</div>';
+      d.agent_messages.forEach(function (a) { hbar(ab, a.user_id, a.count, maxA); });
+    }).catch(function (e) { log('Error dashboard: ' + e.message); });
+  }
+  $('btnDashLoad').onclick = loadDash;
+
+  /* ---- Resumen de conversación (Fase D) ---- */
+  $('btnSummary').onclick = function () {
+    if (!currentConv) return;
+    var box = $('summaryBox');
+    box.style.display = '';
+    box.textContent = 'Resumiendo...';
+    api('/webhook/conversations/summarize', { method: 'POST', body: { conv_id: currentConv.conversation_id } }).then(function (txt) {
+      var d;
+      try { d = JSON.parse(txt); } catch (e) { box.textContent = 'Error: ' + txt.slice(0, 120); return; }
+      box.textContent = d.ok ? ('[' + (d.mode || '') + '] ' + d.summary) : ('Error: ' + (d.error || 'desconocido'));
+    }).catch(function (e) { box.textContent = 'Error: ' + e.message; });
   };
 
   loadCfg();
