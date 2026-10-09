@@ -4,91 +4,170 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ProtoCRM WhatsApp — Demo online</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  :root { --bg:#0f172a; --card:#1e293b; --line:#334155; --txt:#e2e8f0; --dim:#94a3b8;
-          --accent:#22d3ee; --in:#0ea5e9; --out:#10b981; --err:#f87171; --ok:#4ade80; }
+  :root { --bg:#F7F6F3; --surface:#FFFFFF; --surface2:#F9F9F8; --line:#EAEAEA; --line2:rgba(0,0,0,.06);
+          --txt:#111111; --dim:#787774; --muted:#A8A6A1;
+          --accent:#111111; --accent-txt:#FFFFFF;
+          --wa-out:#D9FDD3; --wa-in:#FFFFFF;
+          --pastel-green:#EDF3EC; --pastel-green-t:#346538;
+          --pastel-blue:#E1F3FE; --pastel-blue-t:#1F6C9F;
+          --pastel-red:#FDEBEC; --pastel-red-t:#9F2F2D;
+          --pastel-yellow:#FBF3DB; --pastel-yellow-t:#956400;
+          --wa-green:#128C4B; --err:#9F2F2D; --ok:#346538;
+          --r:12px; --r-sm:8px;
+          --shadow:0 2px 8px rgba(0,0,0,.04); }
   * { box-sizing:border-box; margin:0; padding:0; }
-  body { background:var(--bg); color:var(--txt); font:14px/1.5 'Segoe UI',system-ui,sans-serif; padding:16px; }
-  h1 { font-size:18px; margin-bottom:4px; }
-  h2 { font-size:14px; margin-bottom:8px; color:var(--accent); }
-  .sub { color:var(--dim); font-size:12px; margin-bottom:16px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px; margin-bottom:16px; }
-  input, button, textarea { font:inherit; padding:6px 10px; border-radius:6px; border:1px solid var(--line); background:#0b1424; color:var(--txt); }
-  button { background:var(--accent); color:#06283a; font-weight:600; cursor:pointer; border:none; }
-  button:hover { filter:brightness(1.1); }
+  body { background:var(--bg); color:var(--txt); font:14px/1.6 'SF Pro Display','Geist Sans','Helvetica Neue','Switzer',system-ui,-apple-system,sans-serif; padding:0; -webkit-font-smoothing:antialiased; }
+  body::before { content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background:radial-gradient(600px 300px at 15% 0%, rgba(0,0,0,.025), transparent 70%),
+               radial-gradient(700px 340px at 90% 10%, rgba(18,140,75,.05), transparent 70%); }
+  #app, #demoBanner { position:relative; z-index:1; }
+  #app { max-width:1280px; margin:0 auto; padding:28px 28px 48px; }
+  h1 { font-family:'Newsreader','Lyon Text',Georgia,serif; font-size:26px; font-weight:600; letter-spacing:-.02em; line-height:1.15; margin-bottom:2px; }
+  h2 { font-family:'Newsreader',Georgia,serif; font-size:17px; font-weight:600; letter-spacing:-.015em; margin-bottom:10px; color:var(--txt); }
+  .sub { color:var(--dim); font-size:12.5px; margin-bottom:14px; line-height:1.55; }
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:20px 20px 18px; margin-bottom:16px; box-shadow:var(--shadow); }
+  input, textarea, select { font:inherit; padding:9px 12px; border-radius:6px; border:1px solid var(--line); background:var(--surface); color:var(--txt); outline:none; transition:border-color .15s; }
+  input:focus, textarea:focus, select:focus { border-color:#111; }
+  input::placeholder { color:var(--muted); }
+  button { background:var(--accent); color:var(--accent-txt); font-weight:550; font-size:13px; cursor:pointer; border:1px solid var(--accent); border-radius:6px; padding:9px 14px; transition:transform .12s, background .15s; }
+  button:hover { background:#333; }
+  button:active { transform:scale(.98); }
   button:disabled { opacity:.4; cursor:default; }
-  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px; }
-  .tag { background:#0b1424; border:1px solid var(--line); border-radius:20px; padding:2px 10px; font-size:12px; color:var(--dim); }
-  .grid { display:grid; grid-template-columns:340px 1fr; gap:16px; }
-  @media (max-width:900px){ .grid { grid-template-columns:1fr; } }
-  .conv { padding:8px 10px; border:1px solid var(--line); border-radius:8px; margin-bottom:6px; cursor:pointer; background:#0b1424; }
-  .conv:hover, .conv.sel { border-color:var(--accent); }
-  .conv .who { display:flex; justify-content:space-between; font-weight:600; }
-  .conv .last { color:var(--dim); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .conv .meta { color:var(--dim); font-size:11px; margin-top:2px; }
-  .msg { padding:8px 12px; border-radius:10px; margin-bottom:8px; max-width:75%; word-break:break-word; }
-  .msg.in  { background:#0e3a5c; margin-right:auto; border-top-left-radius:2px; }
-  .msg.out { background:#0c4a3a; margin-left:auto;  border-top-right-radius:2px; }
-  .msg .h { font-size:11px; color:var(--dim); margin-bottom:2px; display:flex; justify-content:space-between; gap:12px; }
-  .empty { color:var(--dim); font-style:italic; padding:8px 0; }
-  #log { font-family:Consolas,monospace; font-size:12px; color:var(--dim); white-space:pre-wrap; max-height:120px; overflow:auto; }
-  .bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
-  .badge { font-size:12px; padding:3px 10px; border-radius:20px; }
-  .ok { background:#052e16; color:var(--ok); border:1px solid var(--ok); }
-  .err { background:#450a0a; color:var(--err); border:1px solid var(--err); }
-  .chip { background:#0b1424; border:1px solid var(--accent); color:var(--txt); border-radius:20px;
-          padding:5px 12px; font-size:12px; cursor:pointer; display:inline-block; margin:2px; }
-  .chip:hover { background:var(--accent); color:#06283a; }
-  #loginOverlay { position:fixed; inset:0; background:rgba(15,23,42,0.96); display:flex; align-items:center; justify-content:center; z-index:999; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
+  .tag { background:var(--surface2); border:1px solid var(--line); border-radius:9999px; padding:3px 11px; font-size:11px; font-weight:550; letter-spacing:.04em; text-transform:uppercase; color:var(--dim); white-space:nowrap; }
+  .tag.ch { padding:2px 8px; font-size:11px; }
+  .ch-whatsapp  { background:var(--pastel-green); color:var(--pastel-green-t); border-color:transparent; }
+  .ch-instagram { background:#F3E8FD; color:#6D28D9; border-color:transparent; }
+  .ch-email     { background:var(--pastel-yellow); color:var(--pastel-yellow-t); border-color:transparent; }
+  .grid { display:grid; grid-template-columns:380px 1fr; gap:16px; align-items:start; }
+  @media (max-width:960px){ .grid { grid-template-columns:1fr; } #app { padding:18px 14px 40px; } }
+  .conv { display:flex; gap:12px; padding:12px 12px; border:1px solid var(--line); border-radius:var(--r-sm); margin-bottom:8px; cursor:pointer; background:var(--surface); transition:box-shadow .2s, border-color .15s, transform .15s; animation:rise .5s cubic-bezier(.16,1,.3,1) both; animation-delay:calc(var(--index,0)*60ms); }
+  .conv:hover { border-color:#D8D6D1; box-shadow:var(--shadow); }
+  .conv.sel { border-color:#111; box-shadow:var(--shadow); }
+  .conv .avatar { flex:none; width:42px; height:42px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:650; font-size:14px; color:var(--txt); background:var(--pastel-blue); border:1px solid var(--line); }
+  .conv .cbody { flex:1; min-width:0; }
+  .conv .who { display:flex; justify-content:space-between; align-items:center; gap:8px; font-weight:600; font-size:13.5px; }
+  .conv .who .time { font-size:11px; color:var(--muted); font-weight:450; font-family:'Geist Mono',monospace; }
+  .conv .last { color:var(--dim); font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px; }
+  .conv .meta { color:var(--muted); font-size:11px; margin-top:5px; display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  .chbadge { width:22px; height:22px; border-radius:7px; display:inline-flex; align-items:center; justify-content:center; flex:none; border:1px solid transparent; }
+  .chbadge svg { width:13px; height:13px; }
+  .chbadge.whatsapp { background:var(--pastel-green); color:var(--wa-green); }
+  .chbadge.instagram { background:#F3E8FD; color:#6D28D9; }
+  .chbadge.email { background:var(--pastel-yellow); color:var(--pastel-yellow-t); }
+  .chbadge.sm { width:18px; height:18px; border-radius:5px; vertical-align:-4px; margin-right:3px; }
+  .chbadge.sm svg { width:11px; height:11px; }
+  @keyframes rise { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }
+  #convList { max-height:62vh; overflow:auto; padding-right:2px; }
+  #msgList { background:#EFEAE2; background-image:radial-gradient(rgba(0,0,0,.05) 1px, transparent 1px); background-size:18px 18px; border:1px solid var(--line); border-radius:var(--r-sm); padding:18px 16px; max-height:52vh; overflow:auto; }
+  .msg { padding:9px 12px 7px; border-radius:10px; margin-bottom:8px; max-width:76%; word-break:break-word; font-size:13.5px; line-height:1.55; box-shadow:0 1px 1px rgba(0,0,0,.06); animation:rise .45s cubic-bezier(.16,1,.3,1) both; }
+  .msg.in  { background:var(--wa-in); margin-right:auto; border-top-left-radius:2px; border:1px solid var(--line); }
+  .msg.out { background:var(--wa-out); margin-left:auto;  border-top-right-radius:2px; border:1px solid rgba(18,140,75,.18); }
+  .msg .h { font-size:10.5px; color:var(--muted); margin-bottom:3px; display:flex; justify-content:space-between; gap:12px; font-family:'Geist Mono',monospace; letter-spacing:.01em; }
+  .msg .foot { display:flex; justify-content:flex-end; align-items:center; gap:4px; font-size:10.5px; color:var(--muted); margin-top:3px; font-family:'Geist Mono',monospace; }
+  .msg .ticks { color:var(--wa-green); font-size:12px; letter-spacing:-2px; }
+  .empty { color:var(--muted); font-size:13px; padding:28px 12px; text-align:center; border:1px dashed var(--line); border-radius:var(--r-sm); background:var(--surface2); }
+  #log { font-family:'Geist Mono',monospace; font-size:11.5px; color:var(--dim); white-space:pre-wrap; max-height:120px; overflow:auto; background:var(--surface2); border:1px solid var(--line); border-radius:6px; padding:8px 10px; }
+  .bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; gap:10px; }
+  .badge { font-size:11px; font-weight:600; padding:4px 12px; border-radius:9999px; letter-spacing:.04em; text-transform:uppercase; }
+  .ok { background:var(--pastel-green); color:var(--pastel-green-t); border:1px solid transparent; }
+  .err { background:var(--pastel-red); color:var(--pastel-red-t); border:1px solid transparent; }
+  .chip { background:var(--surface); border:1px solid var(--line); color:var(--txt); border-radius:9999px;
+          padding:7px 14px; font-size:12.5px; cursor:pointer; display:inline-block; margin:3px; transition:all .15s; }
+  .chip:hover { background:var(--accent); color:var(--accent-txt); border-color:var(--accent); }
+  #loginOverlay { position:fixed; inset:0; background:rgba(247,246,243,.88); backdrop-filter:blur(10px); display:flex; align-items:center; justify-content:center; z-index:999; }
   #loginOverlay.hidden { display:none; }
-  .loginBox { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:24px; width:380px; max-width:90vw; }
-  .loginBox h2 { font-size:16px; margin-bottom:4px; }
-  .loginBox .sub { margin-bottom:12px; }
-  .loginBox input { width:100%; margin-bottom:10px; }
-  .loginBox button { width:100%; }
+  .loginBox { background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:36px 32px 28px; width:400px; max-width:92vw; box-shadow:0 12px 40px rgba(0,0,0,.08); text-align:left; }
+  .loginBox .brand { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+  .loginBox .mark { width:36px; height:36px; border-radius:10px; background:#111; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:18px; }
+  .loginBox h2 { font-size:24px; margin-bottom:4px; font-family:'Newsreader',Georgia,serif; letter-spacing:-.02em; }
+  .loginBox .sub { margin-bottom:16px; }
+  .loginBox input { width:100%; margin-bottom:10px; padding:11px 13px; }
+  .loginBox button { width:100%; padding:12px; font-size:14px; }
   #app.hidden { display:none; }
-  #topBar { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
-  #contactsDrawer { position:fixed; inset:0 auto 0 0; width:20vw; min-width:300px; max-width:380px; background:var(--card); border-right:1px solid var(--line); z-index:998; transform:translateX(-100%); transition:transform 0.25s ease; display:flex; flex-direction:column; }
+  #topBar { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:18px; gap:16px; }
+  .brandrow { display:flex; align-items:center; gap:14px; }
+  .brandrow .mark { width:44px; height:44px; border-radius:12px; background:#111; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:20px; flex:none; }
+  .brandrow .kicker { font-size:11px; font-weight:650; letter-spacing:.09em; text-transform:uppercase; color:var(--wa-green); margin-bottom:2px; }
+  #viewTabs { background:#ECEAE4; border:1px solid var(--line); border-radius:10px; padding:4px; display:inline-flex; gap:2px; margin-bottom:16px; }
+  #viewTabs button { background:transparent; border:none; color:var(--dim); padding:8px 18px; font-size:13px; }
+  #viewTabs button.active { background:var(--surface); color:var(--txt); border:1px solid var(--line); box-shadow:var(--shadow); }
+  #tabCola, #tabMias, #tabFinalizadas, .chf { background:var(--surface) !important; color:var(--dim) !important; border:1px solid var(--line) !important; font-size:11.5px !important; text-transform:none !important; letter-spacing:0 !important; padding:6px 13px !important; }
+  #tabCola.active, #tabMias.active, #tabFinalizadas.active, .chf.active { background:#111 !important; color:#fff !important; border-color:#111 !important; }
+  #contactsDrawer { position:fixed; inset:0 auto 0 0; width:20vw; min-width:320px; max-width:380px; background:var(--surface); border-right:1px solid var(--line); z-index:998; transform:translateX(-105%); transition:transform .28s cubic-bezier(.16,1,.3,1); display:flex; flex-direction:column; box-shadow:8px 0 30px rgba(0,0,0,.06); }
   #contactsDrawer.open { transform:translateX(0); }
-  #drawerBackdrop { position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:997; display:none; }
+  #drawerBackdrop { position:fixed; inset:0; background:rgba(17,17,17,.25); z-index:997; display:none; }
   #drawerBackdrop.open { display:block; }
-  .drawerHead { padding:12px 14px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; }
-  .drawerBody { flex:1; overflow:auto; padding:10px; }
-  .contactItem { padding:8px 10px; border-bottom:1px solid var(--line); cursor:pointer; display:flex; justify-content:space-between; gap:8px; }
-  .contactItem:hover { background:#0b1424; }
+  .drawerHead { padding:16px 18px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; }
+  .drawerBody { flex:1; overflow:auto; padding:12px; }
+  .contactItem { padding:10px 12px; border:1px solid transparent; border-radius:8px; cursor:pointer; display:flex; justify-content:space-between; gap:8px; }
+  .contactItem:hover { background:var(--surface2); border-color:var(--line); }
   .menuSection { border-bottom:1px solid var(--line); }
-  .menuHeader { padding:10px 14px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; font-weight:600; color:var(--accent); font-size:13px; user-select:none; }
-  .menuHeader:hover { background:#0b1424; }
-  .menuBody { padding:10px; }
+  .menuHeader { padding:12px 18px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; font-weight:600; color:var(--txt); font-size:13px; user-select:none; }
+  .menuHeader:hover { background:var(--surface2); }
+  .menuBody { padding:12px 14px 16px; }
   .menuBody.collapsed { display:none; }
-  .menuHeader .arrow { transition:transform 0.2s; font-size:10px; }
+  .menuHeader .arrow { transition:transform 0.2s; font-size:10px; color:var(--muted); }
   .menuHeader.collapsed .arrow { transform:rotate(-90deg); }
-  @media (max-width:900px){ #contactsDrawer { width:85vw; } }
-  #topBar .who { font-size:12px; color:var(--dim); }
+  @media (max-width:960px){ #contactsDrawer { width:86vw; } }
+  #topBar .who { font-size:12px; color:var(--dim); font-family:'Geist Mono',monospace; }
+  .btn-ghost { background:var(--surface) !important; color:var(--txt) !important; border:1px solid var(--line) !important; }
+  .btn-ghost:hover { background:var(--surface2) !important; }
+  .btn-danger-ghost { background:var(--pastel-red) !important; color:var(--pastel-red-t) !important; border:1px solid transparent !important; }
   .hidden { display:none !important; }
   .kanban { display:grid; grid-template-columns:repeat(5, 1fr); gap:10px; }
-  @media (max-width:900px){ .kanban { grid-template-columns:1fr; } }
-  .kcol { background:#0b1424; border:1px solid var(--line); border-radius:8px; padding:8px; min-height:140px; }
-  .kcol h3 { font-size:12px; color:var(--accent); margin-bottom:8px; display:flex; justify-content:space-between; text-transform:capitalize; }
-  .kcard { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:8px; margin-bottom:6px; font-size:12px; }
-  .kcard .amt { color:var(--ok); font-weight:700; }
-  .kcard .mv { display:flex; gap:4px; margin-top:6px; }
-  .kcard .mv button { font-size:11px; padding:2px 8px; }
-  #demoBanner { background:#083344; border:1px solid var(--accent); border-radius:10px; padding:10px 14px; margin-bottom:16px; font-size:13px; }
-  #demoBanner b { color:var(--accent); }
+  @media (max-width:960px){ .kanban { grid-template-columns:1fr 1fr; } }
+  @media (max-width:640px){ .kanban { grid-template-columns:1fr; } }
+  .kcol { background:var(--surface2); border:1px solid var(--line); border-radius:10px; padding:10px; min-height:160px; }
+  .kcol h3 { font-size:11px; font-weight:650; letter-spacing:.07em; text-transform:uppercase; color:var(--dim); margin-bottom:10px; display:flex; justify-content:space-between; font-family:inherit; }
+  .kcol h3 span:last-child { background:var(--surface); border:1px solid var(--line); border-radius:9999px; padding:1px 9px; }
+  .kcard { background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:10px 11px; margin-bottom:8px; font-size:12.5px; transition:box-shadow .2s; }
+  .kcard:hover { box-shadow:var(--shadow); }
+  .kcard .amt { color:var(--wa-green); font-weight:700; font-size:14px; margin-top:2px; }
+  .kcard .mv { display:flex; gap:4px; margin-top:8px; }
+  .kcard .mv button { font-size:11px; padding:4px 10px; }
+  #demoBanner { background:var(--surface); border:1px solid var(--line); border-left:4px solid #111; border-radius:10px; padding:12px 16px; margin:20px auto 0; max-width:1280px; font-size:13px; color:var(--txt); display:flex; align-items:center; gap:12px; box-shadow:var(--shadow); }
+  #demoBanner .pill { background:#111; color:#fff; font-size:10.5px; font-weight:700; letter-spacing:.08em; padding:3px 10px; border-radius:9999px; text-transform:uppercase; flex:none; }
+  #demoBanner b { color:var(--txt); }
+  #handoffBox, #sugWrap, #replyBox { border-top:1px solid var(--line); padding-top:12px; }
+  #replyBox input { flex:1; padding:11px 14px; border-radius:9999px; }
+  #replyBox button { border-radius:9999px; padding:11px 22px; }
+  .csvbadge { background:var(--pastel-green); color:var(--pastel-green-t); font-size:10px; font-weight:700; letter-spacing:.06em; padding:2px 8px; border-radius:9999px; margin-left:4px; }
+  .dash-grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:12px; }
+  @media (max-width:960px){ .dash-grid { grid-template-columns:repeat(2, 1fr); } }
+  .dcard { background:var(--surface2); border:1px solid var(--line); border-radius:10px; padding:14px; }
+  .dcard .big { font-family:'Newsreader',Georgia,serif; font-size:26px; font-weight:600; letter-spacing:-.02em; color:var(--txt); }
+  .dcard .lbl { font-size:10.5px; font-weight:650; letter-spacing:.07em; text-transform:uppercase; color:var(--dim); margin-bottom:2px; }
+  .dcard .hint { font-size:11.5px; color:var(--muted); margin-top:2px; }
+  .dbar { display:flex; align-items:center; gap:10px; margin-bottom:7px; font-size:12.5px; }
+  .dbar .t { width:96px; flex:none; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .dbar .track { flex:1; background:var(--surface); border:1px solid var(--line); border-radius:9999px; height:14px; overflow:hidden; }
+  .dbar .fill { background:#111; border-radius:9999px; height:100%; min-width:3px; transition:width .5s cubic-bezier(.16,1,.3,1); }
+  .dbar .fill.green { background:var(--wa-green); }
+  .dbar .v { width:44px; flex:none; text-align:right; font-family:'Geist Mono',monospace; font-size:11px; color:var(--txt); }
+  .dstack { display:flex; height:16px; border-radius:9999px; overflow:hidden; border:1px solid var(--line); margin:8px 0 6px; }
+  .dstack .b1 { background:var(--wa-green); } .dstack .b2 { background:#111; }
+  .tickrow { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:9px 4px; border-bottom:1px solid var(--line); font-size:12.5px; }
+  .tickrow:last-child { border-bottom:none; }
+  kbd { border:1px solid var(--line); border-radius:4px; background:var(--surface2); padding:1px 6px; font-family:'Geist Mono',monospace; font-size:11px; }
 </style>
 </head>
 <body>
 
-<div id="demoBanner">🚀 <b>MODO DEMO</b> — Todo corre en tu navegador con datos simulados (sin backend). Probá: simular un mensaje, responder como agente, pausar el bot, importar un CSV. <button id="btnResetDemo" style="float:right; font-size:12px; padding:4px 10px">Reiniciar demo</button></div>
+<div id="demoBanner"><span class="pill">Demo en vivo</span><span>Todo corre en tu navegador con datos simulados, sin backend. Probá simular un mensaje, responder como agente y mover el pipeline. <kbd>matias</kbd> / <kbd>matias123</kbd></span><button id="btnResetDemo" class="btn-ghost" style="margin-left:auto; font-size:12px; padding:6px 12px; flex:none">Reiniciar demo</button></div>
 
 <div id="loginOverlay">
   <div class="loginBox">
-    <h2>Ingresar al CRM</h2>
-    <div class="sub">ProtoCRM WhatsApp — acceso de asesores (demo)</div>
-    <input id="loginUser" placeholder="usuario">
-    <input id="loginPass" type="password" placeholder="contraseña">
-    <button id="btnLogin">Entrar</button>
+    <div class="brand"><span class="mark">W</span><span class="tag">ProtoCRM · WhatsApp</span></div>
+    <h2>El inbox que vende por vos</h2>
+    <div class="sub">Bot que saluda y resuelve, handoff a humano con un clic, pipeline y tickets con SLA. Acceso de asesores (demo).</div>
+    <input id="loginUser" placeholder="usuario" autocomplete="username">
+    <input id="loginPass" type="password" placeholder="contraseña" autocomplete="current-password">
+    <button id="btnLogin">Entrar a la demo</button>
     <div id="loginError" class="sub" style="color:var(--err); margin-top:8px; min-height:16px"></div>
     <div class="sub" style="margin-top:12px">Demo: <b>matias</b> / matias123 (admin) · <b>asesor1</b> / 1234 · <b>asesor2</b> / 1234</div>
   </div>
@@ -96,16 +175,20 @@
 
 <div id="app" class="hidden">
 <div id="topBar">
-  <div style="display:flex; align-items:center; gap:12px">
-    <button id="btnMenu" title="Menú" style="font-size:18px; padding:8px 12px; line-height:1">☰</button>
+  <div class="brandrow">
+    <span class="mark">W</span>
     <div>
-      <h1>ProtoCRM WhatsApp — Demo</h1>
-      <div class="sub" style="margin:0">Conversaciones, bot por reglas, handoff a humano y contactos.</div>
+      <div class="kicker">ProtoCRM · WhatsApp Business</div>
+      <h1>Inbox comercial, no un chat más</h1>
+      <div class="sub" style="margin:0">Bot + humano, pipeline y SLA en una sola pantalla. Hecho para cerrar ventas por WhatsApp.</div>
     </div>
   </div>
-  <div style="text-align:right">
+  <div style="text-align:right; flex:none">
     <div id="whoami" class="who"></div>
-    <button id="btnLogout" style="padding:4px 10px; font-size:12px; background:var(--err); color:white; margin-top:4px">Salir</button>
+    <div style="margin-top:6px; display:flex; gap:6px; justify-content:flex-end">
+    <button id="btnMenu" title="Subí tu base en CSV en 20 segundos" class="btn-ghost" style="font-size:12px; padding:7px 12px;">Contactos · Importar base <span class="csvbadge">+ CSV</span></button>
+    <button id="btnLogout" class="btn-danger-ghost" style="padding:7px 12px; font-size:12px;">Salir</button>
+    </div>
   </div>
 </div>
 
@@ -140,39 +223,53 @@
   </div>
 </div>
 
-<div class="row" id="viewTabs" style="margin-bottom:12px">
-  <button id="vInbox" style="background:var(--accent); color:#06283a">Inbox</button>
-  <button id="vPipe" style="background:#0b1424; color:var(--txt)">Pipeline</button>
+<div class="row" id="viewTabs" style="margin-bottom:16px">
+  <button id="vInbox" class="active">Inbox</button>
+  <button id="vPipe">Pipeline</button>
+  <button id="vDash">Dashboard</button>
+  <button id="vAgenda">Agenda <span class="badge">2</span></button>
 </div>
 <div id="viewInbox">
 
 <div class="card">
-  <h2>2. Simular mensaje entrante de Meta</h2>
+  <h2>Simulá un mensaje entrante</h2>
+  <div class="sub" style="margin-bottom:10px">El bot saluda una vez, resuelve lo simple y deriva al humano solo si hace falta. Elegí el canal y probá la bandeja unificada.</div>
   <div class="row">
-    <input id="simPhone" style="width:200px" placeholder="5491133558844">
+    <input id="simPhone" style="width:190px" placeholder="54911...">
     <input id="simName" style="width:160px" placeholder="Nombre del cliente">
-    <input id="simText" style="flex:1" placeholder="Hola, ¿qué horarios tienen?">
+    <select id="simChannel" style="width:150px">
+      <option value="whatsapp">WhatsApp</option>
+      <option value="instagram">Instagram</option>
+      <option value="email">Email</option>
+    </select>
+    <input id="simText" style="flex:1; min-width:200px" placeholder="Hola, ¿qué horarios tienen?">
     <button id="btnSim">Simular mensaje</button>
   </div>
-  <div class="sub">El bot saluda una vez, resuelve lo simple, pide <b>una</b> aclaración conversacional si no entiende (máx. 2) y deriva al humano con ticket si hace falta. Sin menú 1-2-3.</div>
 </div>
 
 <div class="grid">
-  <div class="card">
-    <div class="bar"><h2>3. Conversaciones</h2><span id="convCount" class="tag">0</span></div>
+  <div class="card" style="padding:16px">
+    <div class="bar"><h2 style="margin:0">Conversaciones</h2><span id="convCount" class="tag">0</span></div>
     <div class="row" style="gap:4px; margin-bottom:8px">
       <button id="tabCola" class="tag" style="cursor:pointer; background:var(--accent); color:#06283a">Cola</button>
       <button id="tabMias" class="tag" style="cursor:pointer">Mías</button>
       <button id="tabFinalizadas" class="tag" style="cursor:pointer">Finalizadas</button>
     </div>
-    <div id="convList"><div class="empty">Sin datos.</div></div>
+    <div class="row" id="chFilter" style="gap:4px; margin-bottom:8px">
+      <span class="sub" style="margin:0; align-self:center">Fuente:</span>
+      <button class="chf tag" data-ch="" style="cursor:pointer">Todas</button>
+      <button class="chf tag" data-ch="whatsapp" style="cursor:pointer">WhatsApp</button>
+      <button class="chf tag" data-ch="instagram" style="cursor:pointer">Instagram</button>
+      <button class="chf tag" data-ch="email" style="cursor:pointer">Email</button>
+    </div>
+    <div id="convList"><div class="empty">Sin conversaciones todavía.<br>Simulá tu primer mensaje arriba.</div></div>
   </div>
-  <div class="card">
+  <div class="card" style="padding:16px">
     <div class="bar">
-      <h2 id="msgsTitle">4. Historial de la conversacion</h2>
+      <h2 id="msgsTitle" style="margin:0">Historial</h2>
       <span id="convMeta" class="tag"></span>
     </div>
-    <div id="msgList"><div class="empty">Selecciona una conversacion.</div></div>
+    <div id="msgList"><div class="empty">Seleccioná una conversación de la izquierda para ver el historial.<br>Tip: simulá un mensaje arriba y mirá cómo responde el bot.</div></div>
     <div id="handoffBox" style="display:none; margin-top:8px">
       <span id="handoffBadge" class="tag"></span>
       <button id="btnPausar" style="font-size:12px; padding:4px 8px">Pausar bot</button>
@@ -188,7 +285,7 @@
     </div>
     <div id="replyBox" style="display:none">
       <div class="row" style="margin-top:10px">
-        <input id="replyText" style="flex:1" placeholder="Escribi la respuesta del agente...">
+        <input id="replyText" style="flex:1" placeholder="Escribí la respuesta del agente… (Enter para enviar)">
         <button id="btnSend">Responder</button>
       </div>
     </div>
@@ -209,12 +306,44 @@
   </div>
 </div>
 
+<div id="viewDash" class="hidden">
+  <div class="card">
+    <div class="bar"><h2 style="margin:0">Dashboard comercial</h2><span class="tag">Datos simulados · Reportes Pro</span></div>
+    <div class="sub" style="margin-bottom:12px">¿A qué hora te escriben, por dónde, y cuánta plata hay en juego? Todo sale de tus conversaciones.</div>
+    <div id="dashKpis" class="dash-grid"></div>
+    <div class="grid" style="grid-template-columns:1fr 1fr">
+      <div class="card" style="margin:0"><h2>Conversaciones por canal</h2><div id="dashChannels"></div></div>
+      <div class="card" style="margin:0"><h2>Horario pico de consultas</h2><div id="dashHours"></div><div class="sub" style="margin:8px 0 0">Hora local · todos los mensajes registrados</div></div>
+    </div>
+    <div class="grid" style="grid-template-columns:1fr 1fr; margin-top:12px">
+      <div class="card" style="margin:0"><h2>El bot resuelve solo</h2><div id="dashBot"></div></div>
+      <div class="card" style="margin:0"><h2>Pipeline por etapa</h2><div id="dashPipe"></div></div>
+    </div>
+    <div class="card" style="margin-top:12px; margin-bottom:0"><h2>Tickets y SLA</h2><div id="dashTickets"></div></div>
+  </div>
+</div>
+
+<div id="viewAgenda" class="hidden">
+  <div class="grid">
+    <div class="card">
+      <div class="bar"><h2 style="margin:0">Próximos turnos</h2><span class="tag">Agenda</span></div>
+      <div class="sub" style="margin-top:4px">Atención por orden de llegada · Lun a Sáb · Sin turno previo</div>
+      <div id="agTurnos"></div>
+    </div>
+    <div class="card">
+      <div class="bar"><h2 style="margin:0">Avisos</h2><span id="agAvisosCount" class="badge">2</span></div>
+      <div class="sub" style="margin-top:4px">Conversaciones en cola que necesitan un humano</div>
+      <div id="agAvisos"></div>
+    </div>
+  </div>
+</div>
+
 </div><!-- /#app -->
 
 <script>
 (function () {
   'use strict';
-  var LS_KEY = 'protocrm_demo_v1';
+  var LS_KEY = 'protocrm_demo_v4';
   var $ = function (id) { return document.getElementById(id); };
 
   /* ============ Datos semilla (mismas reglas/usuarios que el backend) ============ */
@@ -265,40 +394,70 @@
   var uid = 0;
   function nid(p) { uid++; return (p || 'id') + '-' + Date.now() + '-' + uid; }
   function minsAgo(m) { return new Date(Date.now() - m * 60000).toISOString(); }
+  // Hora fija de hoy (ayer si ya pasó): picos estables 8 / 12 / 15 / 19h para la demo
+  function atHour(h, mi) { var d = new Date(); d.setHours(h, mi || 0, 0, 0); if (d.getTime() > Date.now()) d.setDate(d.getDate() - 1); return d.toISOString(); }
 
   function seed() {
     uid = 0;
     return {
       convs: [
-        { conversation_id:'conv-1', phone:'5491123456789', contact_name:'Lucía Gómez',
-          status:'open', bot_handled:1, assignee_id:null, assignee_name:null,
-          last_message:'¿Hacen envíos al interior?', last_message_at:minsAgo(12),
+        { conversation_id:'conv-4', phone:'5491133445566', contact_name:'Diego Fernández', channel:'whatsapp',
+          status:'open', bot_handled:1, assignee_id:null, assignee_name:null, greeted:true, clarify:0,
+          last_message:'¿Me pasás presupuesto mayorista x20 camperas?', last_message_at:atHour(19,42),
           messages:[
-            { id:nid('m'), direction:'in',  body:'Hola, ¿qué horarios tienen?', created_at:minsAgo(25), created_by_name:null },
-            { id:nid('m'), direction:'out', body:BOT_RULES[0].response, created_at:minsAgo(25), created_by_name:'Bot' },
-            { id:nid('m'), direction:'in',  body:'¿Hacen envíos al interior?', created_at:minsAgo(12), created_by_name:null },
-            { id:nid('m'), direction:'out', body:FALLBACK, created_at:minsAgo(12), created_by_name:'Bot' }
+            { id:nid('m'), direction:'in',  body:'Hola, ¿hacen precio mayorista?', created_at:atHour(19,5), created_by_name:null },
+            { id:nid('m'), direction:'out', body:BOT_RULES[2].response, created_at:atHour(19,12), created_by_name:'Bot' },
+            { id:nid('m'), direction:'in',  body:'¿Me pasás presupuesto mayorista x20 camperas?', created_at:atHour(19,35), created_by_name:null },
+            { id:nid('m'), direction:'out', body:FALLBACK, created_at:atHour(19,42), created_by_name:'Bot' }
           ]},
-        { conversation_id:'conv-2', phone:'5491198765432', contact_name:'Martín Pérez',
+        { conversation_id:'conv-1', phone:'5491123456789', contact_name:'Lucía Gómez', channel:'whatsapp',
+          status:'open', bot_handled:1, assignee_id:null, assignee_name:null, greeted:true, clarify:0,
+          last_message:'¿Hacen envíos al interior?', last_message_at:atHour(12,20),
+          messages:[
+            { id:nid('m'), direction:'in',  body:'Hola, ¿qué horarios tienen?', created_at:atHour(11,58), created_by_name:null },
+            { id:nid('m'), direction:'out', body:BOT_RULES[0].response, created_at:atHour(12,5), created_by_name:'Bot' },
+            { id:nid('m'), direction:'in',  body:'¿Hacen envíos al interior?', created_at:atHour(12,12), created_by_name:null },
+            { id:nid('m'), direction:'out', body:FALLBACK, created_at:atHour(12,20), created_by_name:'Bot' }
+          ]},
+        { conversation_id:'conv-5', phone:'5491144556677', contact_name:'Valentina Ríos', channel:'instagram',
+          status:'open', bot_handled:1, assignee_id:null, assignee_name:null, greeted:true, clarify:1,
+          last_message:'¿Tienen stock en talles grandes?', last_message_at:atHour(15,40),
+          messages:[
+            { id:nid('m'), direction:'in',  body:'Hola! Les escribo por Instagram, ¿tienen local?', created_at:atHour(15,2), created_by_name:null },
+            { id:nid('m'), direction:'out', body:FALLBACK, created_at:atHour(15,10), created_by_name:'Bot' },
+            { id:nid('m'), direction:'in',  body:'¿Tienen stock en talles grandes?', created_at:atHour(15,25), created_by_name:null },
+            { id:nid('m'), direction:'out', body:'Quiero darte la respuesta justa — ¿me contás un poco más con tus palabras? Puedo ayudarte con: Horarios, Precios, Factura.', created_at:atHour(15,40), created_by_name:'Bot' }
+          ]},
+        { conversation_id:'conv-6', phone:'5491155778899', contact_name:'Roberto Díaz', channel:'email',
+          status:'open', bot_handled:1, assignee_id:null, assignee_name:null, greeted:true, clarify:0,
+          last_message:'Necesito la factura del mes pasado', last_message_at:atHour(8,50),
+          messages:[
+            { id:nid('m'), direction:'in',  body:'Buenas, necesito la factura del mes pasado para contaduría', created_at:atHour(8,44), created_by_name:null },
+            { id:nid('m'), direction:'out', body:BOT_RULES[1].response, created_at:atHour(8,50), created_by_name:'Bot' }
+          ]},
+        { conversation_id:'conv-2', phone:'5491198765432', contact_name:'Martín Pérez', channel:'instagram',
           status:'open', bot_handled:0, assignee_id:'asesor1', assignee_name:'Asesor 1',
-          last_message:'Dale, te espero', last_message_at:minsAgo(40),
+          last_message:'Dale, te espero', last_message_at:atHour(12,52),
           messages:[
-            { id:nid('m'), direction:'in',  body:'Necesito un presupuesto de camperas', created_at:minsAgo(60), created_by_name:null },
-            { id:nid('m'), direction:'out', body:BOT_RULES[2].response, created_at:minsAgo(60), created_by_name:'Bot' },
-            { id:nid('m'), direction:'out', body:'Hola Martín, te paso el catálogo y coordinamos talles.', created_at:minsAgo(40), created_by_name:'Asesor 1' },
-            { id:nid('m'), direction:'in',  body:'Dale, te espero', created_at:minsAgo(40), created_by_name:null }
+            { id:nid('m'), direction:'in',  body:'Necesito un presupuesto de camperas', created_at:atHour(12,30), created_by_name:null },
+            { id:nid('m'), direction:'out', body:BOT_RULES[2].response, created_at:atHour(12,38), created_by_name:'Bot' },
+            { id:nid('m'), direction:'out', body:'Hola Martín, te paso el catálogo y coordinamos talles.', created_at:atHour(12,45), created_by_name:'Asesor 1' },
+            { id:nid('m'), direction:'in',  body:'Dale, te espero', created_at:atHour(12,52), created_by_name:null }
           ]},
-        { conversation_id:'conv-3', phone:'5491155667788', contact_name:'Sofía Ruiz',
+        { conversation_id:'conv-3', phone:'5491155667788', contact_name:'Sofía Ruiz', channel:'email',
           status:'closed', bot_handled:1, assignee_id:null, assignee_name:null,
-          last_message:'Gracias!', last_message_at:minsAgo(300),
+          last_message:'Gracias!', last_message_at:atHour(10,20),
           messages:[
-            { id:nid('m'), direction:'in',  body:'¿Me pasás la factura del mes pasado?', created_at:minsAgo(320), created_by_name:null },
-            { id:nid('m'), direction:'out', body:BOT_RULES[1].response, created_at:minsAgo(320), created_by_name:'Bot' },
-            { id:nid('m'), direction:'in',  body:'Gracias!', created_at:minsAgo(300), created_by_name:null }
+            { id:nid('m'), direction:'in',  body:'¿Me pasás la factura del mes pasado?', created_at:atHour(10,5), created_by_name:null },
+            { id:nid('m'), direction:'out', body:BOT_RULES[1].response, created_at:atHour(10,12), created_by_name:'Bot' },
+            { id:nid('m'), direction:'in',  body:'Gracias!', created_at:atHour(10,20), created_by_name:null }
           ]}
       ],
       contacts: [
+        { phone:'5491133445566', name:'Diego Fernández', tags:'["mayorista"]' },
         { phone:'5491123456789', name:'Lucía Gómez', tags:'["mayorista"]' },
+        { phone:'5491144556677', name:'Valentina Ríos', tags:'["instagram"]' },
+        { phone:'5491155778899', name:'Roberto Díaz', tags:'["email"]' },
         { phone:'5491198765432', name:'Martín Pérez', tags:'["presupuesto"]' },
         { phone:'5491155667788', name:'Sofía Ruiz', tags:'[]' },
         { phone:'5491133558844', name:'Cliente ejemplo', tags:'[]' }
@@ -308,6 +467,10 @@
         { id:'o-2', phone:'5491198765432', contact:'Martín Pérez', title:'Catálogo + talles', amount:80000, stage:'contactado' },
         { id:'o-3', phone:'5491100011122', contact:'Lead nuevo', title:'Consulta mayorista', amount:0, stage:'nuevo' },
         { id:'o-4', phone:'5491155667788', contact:'Sofía Ruiz', title:'Reposición gorros', amount:120000, stage:'ganado' }
+      ],
+      tickets: [
+        { id:'t-1', phone:'5491133445566', contact:'Diego Fernández', subject:'Presupuesto mayorista demorado', status:'abierto', priority:'alta', breached:true },
+        { id:'t-2', phone:'5491155667788', contact:'Sofía Ruiz', subject:'Factura mes pasado', status:'resuelto', priority:'normal', breached:false }
       ]
     };
   }
@@ -329,6 +492,17 @@
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
     });
+  }
+  /* Iconos de canal (SVG propio, trazo 2px): burbuja+teléfono, cámara, sobre */
+  var CH_SVG = {
+    whatsapp: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-12.3 7.5L3 21l2-5.6A8.5 8.5 0 1 1 21 11.5z"/><path d="M8.8 9.2l.7 1.6 1.6 1.6 1.6.7 1-.9 1.9.9c-.2 1-.8 1.6-1.7 1.6-2.9 0-5.3-2.4-5.3-5.3 0-.9.5-1.5 1.6-1.7l.9 1.9z"/></svg>',
+    instagram: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17" cy="7" r="1.3" fill="currentColor" stroke="none"/></svg>',
+    email: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M4 7.5l8 5.5 8-5.5"/></svg>'
+  };
+  function chIcon(ch, small) {
+    var k = CH_SVG[ch] ? ch : 'whatsapp';
+    var label = k === 'whatsapp' ? 'WhatsApp' : (k === 'instagram' ? 'Instagram' : 'Email');
+    return '<span class="chbadge' + (small ? ' sm' : '') + ' ' + k + '" title="' + label + '">' + CH_SVG[k] + '</span>';
   }
   function fmtDate(d) {
     if (!d) return '';
@@ -383,8 +557,7 @@
     ['Cola','Mias','Finalizadas'].forEach(function (n) {
       var b = $('tab' + n);
       var active = tab === n.toLowerCase();
-      b.style.background = active ? 'var(--accent)' : '';
-      b.style.color = active ? '#06283a' : '';
+      if (b) b.classList.toggle('active', active);
     });
     renderConvs();
   }
@@ -403,21 +576,31 @@
     $('convCount').textContent = filtered.length + '/' + S.convs.length;
     box.innerHTML = '';
     if (!filtered.length) {
-      var msg = currentTab === 'cola' ? 'Cola vacía' : currentTab === 'mias' ? 'No tenés conversaciones asignadas' : 'Sin finalizadas';
-      box.innerHTML = '<div class="empty">' + msg + '</div>'; return;
+      var msg = currentTab === 'cola' ? 'Cola vacía, todo atendido' : currentTab === 'mias' ? 'No tenés conversaciones asignadas' : 'Sin finalizadas';
+      box.innerHTML = '<div class="empty">' + msg + (currentTab === 'cola' ? '<br><br><button id="btnEmptyImport" class="btn-ghost" style="font-size:12px">Importar base de contactos →</button>' : '') + '</div>';
+      var bi = $('btnEmptyImport');
+      if (bi) bi.onclick = function () { toggleContacts(true); };
+      return;
     }
-    filtered.forEach(function (c) {
+    filtered.forEach(function (c, i) {
       var isBot = c.bot_handled == 1;
       var badge = isBot ? 'bot' : 'humano';
       if (c.assignee_name) badge = '@' + c.assignee_name;
       else if (c.status === 'closed') badge = 'cerrada';
+      var ch = (c.channel || 'whatsapp').toLowerCase();
+      var initials = String(c.contact_name || c.phone || '?').trim().split(/\s+/).slice(0,2).map(function(w){return w[0]||'';}).join('').toUpperCase() || '?';
+      var pastel = ['var(--pastel-blue)','var(--pastel-green)','var(--pastel-yellow)','var(--pastel-red)'][(String(c.phone||'').length + initials.charCodeAt(0)) % 4];
       var d = document.createElement('div');
       d.className = 'conv' + (currentConv && currentConv.conversation_id === c.conversation_id ? ' sel' : '');
+      d.style.setProperty('--index', i);
       var extra = c.assignee_name ? ' · @' + esc(c.assignee_name) : '';
       if (c.assignee_id && currentUser && c.assignee_id !== currentUser.user_id) d.style.opacity = '0.6';
-      d.innerHTML = '<div class="who"><span>' + esc(c.contact_name) + '</span><span class="tag">' + esc(c.status) + ' · ' + esc(badge) + '</span></div>' +
-                    '<div class="last">' + esc(c.last_message || '') + extra + '</div>' +
-                    '<div class="meta">' + esc(c.phone) + ' · ' + fmtDate(c.last_message_at) + '</div>';
+      var timeShort = '';
+      try { var dt = new Date(c.last_message_at); if (!isNaN(dt)) timeShort = dt.toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'}); } catch(e){}
+      d.innerHTML = '<span class="avatar" style="background:' + pastel + '">' + esc(initials) + '</span><span class="cbody">' +
+                    '<span class="who"><span>' + esc(c.contact_name) + '</span><span class="time">' + esc(timeShort) + '</span></span>' +
+                    '<span class="last">' + esc(c.last_message || '') + extra + '</span>' +
+                    '<span class="meta">' + chIcon(ch) + esc(c.phone) + ' · <span class="tag" style="font-size:10px; padding:1px 8px">' + esc(c.status) + ' · ' + esc(badge) + '</span></span></span>';
       d.onclick = function () {
         if (!c.assignee_id && c.status !== 'closed') {
           c.assignee_id = currentUser.user_id; c.assignee_name = currentUser.display_name;
@@ -477,9 +660,13 @@
       var d = document.createElement('div');
       d.className = 'msg ' + (m.direction === 'in' ? 'in' : 'out');
       var who = m.direction === 'in' ? 'Cliente' : (m.created_by_name ? esc(m.created_by_name) : 'Bot');
-      d.innerHTML = '<div class="h"><span>' + who + '</span><span>' + fmtDate(m.created_at) + '</span></div>' + esc(m.body || '');
+      var t = '';
+      try { var dt = new Date(m.created_at); if (!isNaN(dt)) t = dt.toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'}); } catch(e){}
+      var ticks = m.direction === 'out' ? ' <span class="ticks">✓✓</span>' : '';
+      d.innerHTML = '<div class="h"><span>' + who + '</span></div><div>' + esc(m.body || '') + '</div><div class="foot"><span>' + esc(t) + '</span>' + ticks + '</div>';
       box.appendChild(d);
     });
+    box.scrollTop = box.scrollHeight;
   }
 
   function pushMsg(conv, direction, body, by) {
@@ -707,17 +894,24 @@
   /* ============ Pipeline demo ============ */
   var STAGE_ORDER = ['nuevo','contactado','cotizado','ganado','perdido'];
   if (!S.opps) { S.opps = seed().opps; save(); }
+  if (!S.tickets) { S.tickets = seed().tickets; save(); }
   function switchView(v) {
     $('viewInbox').classList.toggle('hidden', v !== 'inbox');
     $('viewPipe').classList.toggle('hidden', v !== 'pipe');
-    $('vInbox').style.background = v === 'inbox' ? 'var(--accent)' : '#0b1424';
-    $('vInbox').style.color = v === 'inbox' ? '#06283a' : 'var(--txt)';
-    $('vPipe').style.background = v === 'pipe' ? 'var(--accent)' : '#0b1424';
-    $('vPipe').style.color = v === 'pipe' ? '#06283a' : 'var(--txt)';
+    $('viewDash').classList.toggle('hidden', v !== 'dash');
+    $('viewAgenda').classList.toggle('hidden', v !== 'agenda');
+    $('vInbox').classList.toggle('active', v === 'inbox');
+    $('vPipe').classList.toggle('active', v === 'pipe');
+    $('vDash').classList.toggle('active', v === 'dash');
+    $('vAgenda').classList.toggle('active', v === 'agenda');
     if (v === 'pipe') renderPipe();
+    if (v === 'dash') renderDash();
+    if (v === 'agenda') renderAgenda();
   }
   $('vInbox').onclick = function () { switchView('inbox'); };
   $('vPipe').onclick = function () { switchView('pipe'); };
+  $('vDash').onclick = function () { switchView('dash'); };
+  $('vAgenda').onclick = function () { switchView('agenda'); };
   function fmtMoney(n) {
     return '$' + Number(n || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 });
   }
@@ -771,7 +965,149 @@
     renderPipe(); log('Oportunidad creada (demo)');
   };
 
+  /* ============ Dashboard comercial (solo lectura, desde seed) ============ */
+  function dbar(box, label, value, max, green) {
+    var pct = max > 0 ? Math.round(100 * value / max) : 0;
+    var d = document.createElement('div');
+    d.className = 'dbar';
+    d.innerHTML = '<span class="t">' + esc(label) + '</span>' +
+      '<span class="track"><span class="fill' + (green ? ' green' : '') + '" style="display:block; width:' + pct + '%"></span></span>' +
+      '<span class="v">' + esc(String(value)) + '</span>';
+    box.appendChild(d);
+  }
+  function kpi(box, big, lbl, hint) {
+    var d = document.createElement('div');
+    d.className = 'dcard';
+    d.innerHTML = '<div class="lbl">' + esc(lbl) + '</div><div class="big">' + esc(big) + '</div>' +
+      (hint ? '<div class="hint">' + esc(hint) + '</div>' : '');
+    box.appendChild(d);
+  }
+  function renderDash() {
+    var convs = S.convs || [], opps = S.opps || [], tickets = S.tickets || [];
+    var cola = convs.filter(function (c) { return !c.assignee_id && c.status !== 'closed'; }).length;
+    var mias = (currentUser && convs.filter(function (c) { return c.assignee_id === currentUser.user_id; }).length) || 0;
+    var fin = convs.filter(function (c) { return c.status === 'closed'; }).length;
+    var botN = convs.filter(function (c) { return c.bot_handled == 1; }).length;
+    var botPct = convs.length ? Math.round(100 * botN / convs.length) : 0;
+    var openAmt = opps.filter(function (o) { return ['nuevo','contactado','cotizado'].indexOf(o.stage) >= 0; })
+                      .reduce(function (a, o) { return a + Number(o.amount || 0); }, 0);
+    // KPIs
+    var k = $('dashKpis'); k.innerHTML = '';
+    kpi(k, cola + ' en cola', 'Esperando agente', mias + ' mías · ' + fin + ' finalizadas');
+    kpi(k, botPct + '%', 'Resuelve el bot solo', botN + ' de ' + convs.length + ' conversaciones');
+    kpi(k, '8s / 4m', '1ª respuesta bot / humano', 'El bot no hace esperar');
+    kpi(k, fmtMoney(openAmt), 'Pipeline abierto', opps.length + ' oportunidades');
+    // Por canal
+    var ch = $('dashChannels'); ch.innerHTML = '';
+    var chCount = {};
+    convs.forEach(function (c) { var k2 = (c.channel || 'whatsapp'); chCount[k2] = (chCount[k2] || 0) + 1; });
+    var chMax = 1, kk;
+    for (kk in chCount) chMax = Math.max(chMax, chCount[kk]);
+    ['whatsapp','instagram','email'].forEach(function (c) {
+      if (chCount[c]) dbar(ch, c[0].toUpperCase() + c.slice(1), chCount[c], chMax, c === 'whatsapp');
+    });
+    // Horario pico (hora local, todos los mensajes)
+    var hb = $('dashHours'); hb.innerHTML = '';
+    var hours = {};
+    convs.forEach(function (cv) {
+      (cv.messages || []).forEach(function (m) {
+        var d = new Date(m.created_at);
+        if (!isNaN(d)) { var h = d.getHours(); hours[h] = (hours[h] || 0) + 1; }
+      });
+    });
+    var hMax = 1, h;
+    for (h in hours) hMax = Math.max(hMax, hours[h]);
+    Object.keys(hours).map(Number).sort(function (a, b) { return a - b; }).forEach(function (h2) {
+      dbar(hb, (h2 < 10 ? '0' : '') + h2 + ':00', hours[h2], hMax, hours[h2] === hMax);
+    });
+    if (!Object.keys(hours).length) hb.innerHTML = '<div class="empty">Sin mensajes aún.</div>';
+    // Bot vs humano
+    var bb = $('dashBot'); bb.innerHTML = '';
+    var humN = convs.length - botN;
+    var st = document.createElement('div');
+    st.className = 'dstack';
+    st.innerHTML = '<span class="b1" style="width:' + botPct + '%"></span><span class="b2" style="width:' + (100 - botPct) + '%"></span>';
+    bb.appendChild(st);
+    var leg = document.createElement('div');
+    leg.className = 'sub';
+    leg.style.margin = '0';
+    leg.innerHTML = '<span class="tag" style="background:var(--pastel-green); color:var(--pastel-green-t); border-color:transparent">Bot: ' + botN + '</span> ' +
+      '<span class="tag">Humano: ' + humN + '</span> El bot filtra, el humano cierra.';
+    bb.appendChild(leg);
+    // Pipeline por etapa
+    var pb = $('dashPipe'); pb.innerHTML = '';
+    var byStage = {}, pMax = 1;
+    opps.forEach(function (o) { byStage[o.stage] = (byStage[o.stage] || 0) + Number(o.amount || 0); });
+    STAGE_ORDER.forEach(function (s) { pMax = Math.max(pMax, byStage[s] || 0); });
+    STAGE_ORDER.forEach(function (s) {
+      if (byStage[s]) dbar(pb, s, fmtMoney(byStage[s]), pMax, s === 'ganado');
+    });
+    if (!opps.length) pb.innerHTML = '<div class="empty">Sin oportunidades.</div>';
+    // Tickets
+    var tb = $('dashTickets'); tb.innerHTML = '';
+    if (!tickets.length) { tb.innerHTML = '<div class="empty">Sin tickets.</div>'; return; }
+    tickets.forEach(function (t) {
+      var r = document.createElement('div');
+      r.className = 'tickrow';
+      r.innerHTML = '<span><b>' + esc(t.subject || 'Sin asunto') + '</b> · ' + esc(t.contact || '') + '</span>' +
+        '<span class="tag" style="' + (t.breached ? 'background:var(--pastel-red); color:var(--pastel-red-t); border-color:transparent' : '') + '">' +
+        esc(t.priority) + ' · ' + esc(t.status) + (t.breached ? ' · SLA vencido' : '') + '</span>';
+      tb.appendChild(r);
+    });
+  }
+
+  /* ============ Agenda (demo) ============ */
+  function agHoy(h, mi) {
+    var d = new Date();
+    d.setHours(h, mi || 0, 0, 0);
+    if (d.getTime() < Date.now()) { d.setDate(d.getDate() + 1); d.setHours(h, mi || 0, 0, 0); }
+    return d;
+  }
+  function hm(d) {
+    var h = d.getHours(), m = d.getMinutes();
+    return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+  }
+  function renderAgenda() {
+    var turnos = [
+      { d: agHoy(12, 0),  who: 'Lucía Gómez',     what: 'Presupuesto camperas x10',     ch: 'whatsapp',  state: 'Hoy' },
+      { d: agHoy(15, 30), who: 'Diego Fernández', what: 'Mayorista x20 camperas',       ch: 'whatsapp',  state: 'Hoy' },
+      { d: agHoy(10, 0),  who: 'Valentina Ríos',  what: 'Consulta talles grandes',      ch: 'instagram', state: 'Mañana' }
+    ];
+    var t = $('agTurnos'); t.innerHTML = '';
+    turnos.forEach(function (x) {
+      var r = document.createElement('div');
+      r.className = 'tickrow';
+      r.innerHTML = '<span>' + chIcon(x.ch, true) + ' <b>' + esc(x.who) + '</b> · ' + esc(x.what) + '</span>' +
+        '<span class="tag">' + esc(x.state) + ' ' + hm(x.d) + 'h</span>';
+      t.appendChild(r);
+    });
+    // Avisos derivados de la bandeja: en cola, requieren humano
+    var pend = (S.convs || []).filter(function (c) { return c.assignee_id == null && c.status !== 'closed'; });
+    var avisos = [];
+    ['conv-4', 'conv-5'].forEach(function (id) {
+      var c = pend.filter(function (x) { return x.conversation_id === id; })[0];
+      if (!c) return;
+      avisos.push({ id: id, txt: c.conversation_id === 'conv-4'
+          ? 'Presupuesto mayorista x20 camperas'
+          : 'Consulta sin resolver', who: c.contact_name || '' });
+    });
+    var a = $('agAvisos'); a.innerHTML = '';
+    $('agAvisosCount').textContent = avisos.length;
+    if (!avisos.length) { a.innerHTML = '<div class="empty">Sin avisos.</div>'; return; }
+    avisos.forEach(function (x) {
+      var r = document.createElement('div');
+      r.className = 'tickrow';
+      r.innerHTML = '<span><b>' + esc(x.who) + '</b> · ' + esc(x.txt) + '</span>' +
+        '<span class="tag" style="background:var(--pastel-red); color:var(--pastel-red-t); border-color:transparent">Pendiente humano</span>';
+      a.appendChild(r);
+    });
+  }
+
   /* ============ Init ============ */
+  document.querySelectorAll('#chFilter .chf').forEach(function (b) {
+    var k = b.getAttribute('data-ch');
+    if (k && CH_SVG[k]) b.innerHTML = chIcon(k, true) + b.innerHTML;
+  });
   updateLoginUI();
   renderConvs();
   renderContacts(S.contacts);
