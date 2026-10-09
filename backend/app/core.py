@@ -101,14 +101,15 @@ def handoff_activo(db: SASession, conv_id: str) -> bool:
 
 def insert_message(db: SASession, conv_id: str, direction: str, body: str,
                    wa_id: str | None = None, mtype: str = "text",
-                   created_by: str | None = None) -> str:
+                   created_by: str | None = None, media_url: str | None = None) -> str:
     wa = wa_id or f"wamid.{uuid.uuid4().hex[:12]}"
     exists = db.query(Message).filter(Message.wa_message_id == wa).first()
     if exists:
         return wa
     db.add(Message(id=str(uuid.uuid4()), conversation_id=conv_id, direction=direction,
                    message_type=mtype, body=(body or "")[:MAX_BODY],
-                   wa_message_id=wa, created_at=now_iso(), created_by=created_by))
+                   wa_message_id=wa, created_at=now_iso(), created_by=created_by,
+                   media_url=media_url))
     db.commit()
     return wa
 

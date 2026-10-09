@@ -38,6 +38,11 @@ if not JWT_SECRET:
 WA_VERIFY_TOKEN = cfg("WA_VERIFY_TOKEN")
 WA_SEND_KEY = cfg("WA_SEND_KEY")
 WA_APP_SECRET = cfg("WA_APP_SECRET")
+try:
+    WA_MAX_MSGS_PER_MIN = max(1, int(cfg("WA_MAX_MSGS_PER_MIN", "10")))
+except Exception:
+    WA_MAX_MSGS_PER_MIN = 10
+WA_BLOCKLIST = [p for p in cfg("WA_BLOCKLIST").replace(" ", "").split(",") if p]
 OPENROUTER_API_KEY = cfg("OPENROUTER_API_KEY")
 LLM_MODEL = cfg("LLM_MODEL", "meta-llama/llama-3.3-70b-instruct:free")
 try:
